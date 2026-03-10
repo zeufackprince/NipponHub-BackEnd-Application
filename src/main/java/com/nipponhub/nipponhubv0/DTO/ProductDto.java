@@ -1,5 +1,6 @@
 package com.nipponhub.nipponhubv0.DTO;
 
+import java.math.BigDecimal;
 import java.util.Date;
 import java.util.List;
 
@@ -12,12 +13,18 @@ public class ProductDto {
 
     private String ProdName;
 
-    private String Unitprice;
+    private BigDecimal UnitPrice;
 
-    private String SoldPrice;
+    private BigDecimal SoldPrice;
 
     private Integer ProdQty;
     
+    private String Message = "Success";
+
+    private String countryName;
+
+    private String categorieName;
+
     private List<String> ProdUrl;
 
     private Date createdAt;

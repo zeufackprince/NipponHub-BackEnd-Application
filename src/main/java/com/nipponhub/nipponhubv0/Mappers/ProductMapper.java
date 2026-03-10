@@ -18,7 +18,7 @@ public class ProductMapper {
         res.setProdName(reqProduct.getProdName());
         res.setProdQty(reqProduct.getProdQty());
         res.setSoldPrice(reqProduct.getSoldPrice());
-        res.setUnitprice(reqProduct.getUnitprice());
+        res.setUnitPrice(reqProduct.getUnitPrice());
         
 
         return res;
@@ -34,7 +34,7 @@ public class ProductMapper {
         res.setProdName(reqProduct.getProdName());
         res.setProdQty(reqProduct.getProdQty());
         res.setSoldPrice(reqProduct.getSoldPrice());
-        res.setUnitprice(reqProduct.getUnitprice());
+        res.setUnitPrice(reqProduct.getUnitPrice());
         
 
         return res;
