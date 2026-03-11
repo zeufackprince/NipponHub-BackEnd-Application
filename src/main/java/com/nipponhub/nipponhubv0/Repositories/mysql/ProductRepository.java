@@ -1,4 +1,4 @@
-package com.nipponhub.nipponhubv0.Repositories;
+package com.nipponhub.nipponhubv0.Repositories.mysql;
 
 import java.util.List;
 import java.util.Optional;

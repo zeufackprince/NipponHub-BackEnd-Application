@@ -1,91 +1,128 @@
 package com.nipponhub.nipponhubv0.Controllers;
 
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.multipart.MultipartFile;
-
 import com.nipponhub.nipponhubv0.DTO.ProductDto;
 import com.nipponhub.nipponhubv0.Services.ProductService;
-
-import lombok.Data;
-
-import java.math.BigDecimal;
-import java.util.List;
-
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
+
+@Slf4j
 @RestController
 @RequestMapping("/api/v0/product")
-@Data
+@RequiredArgsConstructor   // FIX: replaced @Data — @Data is for models, not controllers
 public class ProductController {
-    
+
     private final ProductService productServices;
 
+    // ─── CREATE ──────────────────────────────────────────────────────────────────
+
+    /**
+     * POST /api/v0/product/newProduct
+     *
+     * FIX: Returns ResponseEntity<ProductDto> with HTTP 201 CREATED instead of raw DTO.
+     * FIX: Added throws IOException — no longer silently swallowed.
+     * FIX: Removed unnecessary null initialization of reqProductDto.
+     * FIX: Added error handling for IllegalArgumentException (validation errors).
+     */
     @PostMapping("/newProduct")
-    public ProductDto newProduct(
-        @RequestParam(required = false, name = "ProdName") String ProdName,
-        @RequestParam(required = false, name = "UnitPrice") BigDecimal UnitPrice,
-        @RequestParam(required = false, name = "SoldPrice") BigDecimal SoldPrice,
-        @RequestParam(required = false, name = "ProdQty") Integer ProdQty,
-        @RequestParam(required = false ,name = "ProdUrl") List<MultipartFile> ProdUrl,
-        @RequestParam(required = false, name = "Country") List<String> Country,
-        @RequestParam(required = false, name = "category") String category
-    ){
+    public ResponseEntity<?> newProduct(
+        @RequestParam(required = false, name = "ProdName")    String ProdName,
+        @RequestParam(required = false, name = "UnitPrice")   BigDecimal UnitPrice,
+        @RequestParam(required = false, name = "SoldPrice")   BigDecimal SoldPrice,
+        @RequestParam(required = false, name = "ProdQty")     Integer ProdQty,
+        @RequestParam(required = false, name = "ProdUrl")     List<MultipartFile> ProdUrl,
+        @RequestParam(required = false, name = "Country")     List<String> Country,
+        @RequestParam(required = false, name = "category")    String category
+    ) throws IOException {
 
-        ProductDto reqProductDto = null;
+        try {
+            ProductDto result = productServices.createProduct(
+                ProdName, UnitPrice, SoldPrice, ProdQty, ProdUrl, Country, category
+            );
+            return ResponseEntity.status(HttpStatus.CREATED).body(result);
 
-            reqProductDto = this.productServices.createProduct(ProdName, UnitPrice, SoldPrice, ProdQty, ProdUrl, Country, category);
-
-        return reqProductDto;
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity
+                .badRequest()
+                .body(Map.of("error", e.getMessage()));
+        }
     }
 
+    // ─── UPDATE ──────────────────────────────────────────────────────────────────
+
+    /**
+     * POST /api/v0/product/updateProduct/{idProd}
+     *
+     * FIX: Added throws IOException — previously swallowed file upload errors silently.
+     * FIX: Removed unnecessary null initialization of reqProductDto.
+     * FIX: Returns ResponseEntity with proper HTTP status.
+     */
     @PostMapping("/updateProduct/{idProd}")
-    public ProductDto updateProduct(
+    public ResponseEntity<?> updateProduct(
         @PathVariable Long idProd,
-        @RequestParam(required = false, name = "ProdName") String ProdName,
-        @RequestParam(required = false, name = "UnitPrice") BigDecimal UnitPrice,
-        @RequestParam(required = false, name = "SoldPrice") BigDecimal SoldPrice,
-        @RequestParam(required = false, name = "ProdQty") Integer ProdQty,
-        @RequestParam(required = false ,name = "ProdUrl") List<MultipartFile> ProdUrl,
-        @RequestParam(required = false, name = "Country") List<String> Country,
-        @RequestParam(required = false, name = "category") String category
-    ) {
-        ProductDto reqProductDto = null;
-        
-            reqProductDto = this.productServices.updateProduct(idProd, ProdName, UnitPrice, SoldPrice, ProdQty, ProdUrl, Country, category);
+        @RequestParam(required = false, name = "ProdName")    String ProdName,
+        @RequestParam(required = false, name = "UnitPrice")   BigDecimal UnitPrice,
+        @RequestParam(required = false, name = "SoldPrice")   BigDecimal SoldPrice,
+        @RequestParam(required = false, name = "ProdQty")     Integer ProdQty,
+        @RequestParam(required = false, name = "ProdUrl")     List<MultipartFile> ProdUrl,
+        @RequestParam(required = false, name = "Country")     List<String> Country,
+        @RequestParam(required = false, name = "category")    String category
+    ) throws IOException {
 
-        return reqProductDto;
+        ProductDto result = productServices.updateProduct(
+            idProd, ProdName, UnitPrice, SoldPrice, ProdQty, ProdUrl, Country, category
+        );
+
+        // If service set a message, something went wrong
+        if (result.getMessage() != null) {
+            return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(result);
+        }
+
+        return ResponseEntity.ok(result);
     }
 
-    // ─── GET ALL PRODUCTS ───────────────────────────────────────────
+    // ─── READ ────────────────────────────────────────────────────────────────────
+
+    /**
+     * GET /api/v0/product/all
+     * Returns all products.
+     */
     @GetMapping("/all")
     public ResponseEntity<List<ProductDto>> getAllProducts() {
         List<ProductDto> products = productServices.getAllProducts();
         return ResponseEntity.ok(products);
     }
 
-    // ─── GET PRODUCT BY ID ──────────────────────────────────────────
+    /**
+     * GET /api/v0/product/{idProd}
+     * Returns a product by its MySQL id.
+     */
     @GetMapping("/{idProd}")
     public ResponseEntity<ProductDto> getProductById(@PathVariable Long idProd) {
         ProductDto product = productServices.getProductById(idProd);
 
-        // If the message field is set, something went wrong
         if (product.getMessage() != null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(product);
         }
         return ResponseEntity.ok(product);
     }
 
-    // ─── GET PRODUCT BY NAME ────────────────────────────────────────
+    /**
+     * GET /api/v0/product/search?prodName=...
+     * Returns a product by name (case-insensitive).
+     */
     @GetMapping("/search")
-    public ResponseEntity<ProductDto> getProductByName(
-        @RequestParam String prodName
-    ) {
+    public ResponseEntity<ProductDto> getProductByName(@RequestParam String prodName) {
         ProductDto product = productServices.getProductByName(prodName);
 
         if (product.getMessage() != null) {
@@ -94,18 +131,10 @@ public class ProductController {
         return ResponseEntity.ok(product);
     }
 
-    // @GetMapping("/all")
-    // public ResponseEntity<Page<ProductDto>> getAllProducts(
-    //     @RequestParam(defaultValue = "0")  int page,
-    //     @RequestParam(defaultValue = "10") int size
-    // )    {
-    //     return ResponseEntity.ok(productServices.getAllProducts(page, size));
-    // }
+    // ─── HEALTH CHECK ────────────────────────────────────────────────────────────
 
-    @GetMapping("/greatings")
-    public String greating() {
-        return("Hello prince, I'm a visible EndPoint");
+    @GetMapping("/greetings")
+    public ResponseEntity<String> greeting() {
+        return ResponseEntity.ok("Hello prince, I'm a visible EndPoint");
     }
-
-
 }

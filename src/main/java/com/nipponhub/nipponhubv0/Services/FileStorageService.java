@@ -1,9 +1,10 @@
 package com.nipponhub.nipponhubv0.Services;
 
-
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBObject;
 import com.mongodb.client.gridfs.model.GridFSFile;
+import com.nipponhub.nipponhubv0.Models.FileDocument;
+import com.nipponhub.nipponhubv0.Repositories.mongodb.FileRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.types.ObjectId;
@@ -26,26 +27,49 @@ public class FileStorageService {
 
     private final GridFsTemplate gridFsTemplate;
     private final GridFsOperations gridFsOperations;
+    private final FileRepository fileRepository;
+
+    // ─── UPLOAD ─────────────────────────────────────────────────────────────────
 
     /**
-     * Upload a single image to MongoDB GridFS.
-     * Returns the MongoDB ObjectId (String) of the stored file.
+     * Upload a single image to MongoDB GridFS and save its metadata.
+     *
+     * @param file the multipart image file
+     * @return the GridFS ObjectId as a String
+     * @throws IOException              if reading the file stream fails
+     * @throws IllegalArgumentException if the file is not an image
      */
     public String uploadFile(MultipartFile file) throws IOException {
+        return uploadFile(file, null);
+    }
 
-        // Validate the file is an image
+    /**
+     * Upload a single image linked to a specific product.
+     *
+     * @param file      the multipart image file
+     * @param productId optional MySQL product id to associate with this file
+     * @return the GridFS ObjectId as a String
+     */
+    public String uploadFile(MultipartFile file, Long productId) throws IOException {
+
+        // ── Validate ──────────────────────────────────────────────────────────
         String contentType = file.getContentType();
         if (contentType == null || !contentType.startsWith("image/")) {
-            throw new IllegalArgumentException("Only image files are allowed. Received: " + contentType);
+            throw new IllegalArgumentException(
+                "Only image files are allowed. Received: " + contentType
+            );
         }
 
-        // Attach metadata so we can query by original name or product later
+        // ── Build GridFS metadata ─────────────────────────────────────────────
         DBObject metadata = new BasicDBObject();
         metadata.put("originalName", file.getOriginalFilename());
         metadata.put("contentType", contentType);
         metadata.put("size", file.getSize());
+        if (productId != null) {
+            metadata.put("productId", productId);
+        }
 
-        // Store in GridFS — returns the MongoDB ObjectId
+        // ── Store in GridFS ───────────────────────────────────────────────────
         ObjectId fileId = gridFsTemplate.store(
             file.getInputStream(),
             file.getOriginalFilename(),
@@ -53,69 +77,118 @@ public class FileStorageService {
             metadata
         );
 
-        log.info("File uploaded to MongoDB GridFS — id: {}, name: {}", fileId, file.getOriginalFilename());
+        // ── Persist metadata document ─────────────────────────────────────────
+        FileDocument doc = FileDocument.builder()
+            .gridFsId(fileId.toString())
+            .originalName(file.getOriginalFilename())
+            .contentType(contentType)
+            .size(file.getSize())
+            .productId(productId)
+            .build();
 
-        // Return the id as a String (this is what we store in product.prodUrl)
+        fileRepository.save(doc);
+
+        log.info("File uploaded — gridFsId: {}, name: {}, productId: {}",
+            fileId, file.getOriginalFilename(), productId);
+
         return fileId.toString();
     }
 
     /**
-     * Upload multiple images at once.
-     * Returns a list of MongoDB ObjectIds (Strings).
+     * Upload multiple images at once (no product association).
      */
     public List<String> uploadFiles(List<MultipartFile> files) throws IOException {
+        return uploadFiles(files, null);
+    }
+
+    /**
+     * Upload multiple images, all linked to the same product.
+     */
+    public List<String> uploadFiles(List<MultipartFile> files, Long productId) throws IOException {
         List<String> fileIds = new ArrayList<>();
+        if (files == null || files.isEmpty()) return fileIds;
+
         for (MultipartFile file : files) {
             if (file != null && !file.isEmpty()) {
-                fileIds.add(uploadFile(file));
+                fileIds.add(uploadFile(file, productId));
             }
         }
         return fileIds;
     }
 
+    // ─── RETRIEVE ────────────────────────────────────────────────────────────────
+
     /**
-     * Retrieve a file's InputStream from GridFS by its ObjectId.
-     * Used by the controller to serve the image.
+     * Retrieve a file's InputStream from GridFS by its ObjectId string.
+     *
+     * @throws IOException if the file is not found or stream can't be opened
      */
     public InputStream getFileById(String fileId) throws IOException {
         GridFSFile gridFSFile = gridFsTemplate.findOne(
-            new Query(Criteria.where("_id").is(fileId))
+            new Query(Criteria.where("_id").is(new ObjectId(fileId))) // ✅ ObjectId — not raw String
         );
 
         if (gridFSFile == null) {
-            throw new RuntimeException("File not found in MongoDB: " + fileId);
+            throw new IOException("File not found in GridFS: " + fileId);
         }
 
         return gridFsOperations.getResource(gridFSFile).getInputStream();
     }
 
     /**
-     * Get the content type of a stored file (e.g. "image/png").
+     * Get the MIME content type of a stored file.
+     * Falls back to "image/jpeg" if metadata is missing.
+     *
+     * FIX: was using raw String for _id — now correctly uses ObjectId.
      */
     public String getContentType(String fileId) {
-        GridFSFile gridFSFile = gridFsTemplate.findOne(
-            new Query(Criteria.where("_id").is(fileId))
-        );
 
-        if (gridFSFile == null || gridFSFile.getMetadata() == null) {
-            return "image/jpeg"; // safe default
-        }
+        // ── Try metadata repo first (faster) ─────────────────────────────────
+        return fileRepository.findByGridFsId(fileId)
+            .map(FileDocument::getContentType)
+            .orElseGet(() -> {
+                // ── Fallback: query GridFS directly ──────────────────────────
+                GridFSFile gridFSFile = gridFsTemplate.findOne(
+                    new Query(Criteria.where("_id").is(new ObjectId(fileId))) // ✅ Fixed
+                );
 
-        return gridFSFile.getMetadata().getString("contentType");
+                if (gridFSFile == null || gridFSFile.getMetadata() == null) {
+                    log.warn("Content type not found for fileId: {} — defaulting to image/jpeg", fileId);
+                    return "image/jpeg";
+                }
+
+                return gridFSFile.getMetadata().getString("contentType");
+            });
     }
 
     /**
-     * Delete a single file from GridFS by its ObjectId.
+     * Get all file metadata documents associated with a product.
+     */
+    public List<FileDocument> getFilesByProductId(Long productId) {
+        return fileRepository.findAllByProductId(productId);
+    }
+
+    // ─── DELETE ──────────────────────────────────────────────────────────────────
+
+    /**
+     * Delete a single file from GridFS and remove its metadata document.
+     *
+     * FIX: was using raw String for _id — now correctly uses ObjectId.
      */
     public void deleteFile(String fileId) {
+        // ── Delete from GridFS ────────────────────────────────────────────────
         gridFsTemplate.delete(
-            new Query(Criteria.where("_id").is(fileId))
+            new Query(Criteria.where("_id").is(new ObjectId(fileId))) // ✅ Fixed
         );
-        log.info("File deleted from MongoDB GridFS — id: {}", fileId);
+
+        // ── Delete metadata document ──────────────────────────────────────────
+        fileRepository.deleteByGridFsId(fileId);
+
+        log.info("File deleted — gridFsId: {}", fileId);
     }
 
     /**
-     * Delete multiple files at once (used when updating a product's images).
+     * Delete multiple files at once.
      */
     public void deleteFiles(List<String> fileIds) {
         if (fileIds == null || fileIds.isEmpty()) return;

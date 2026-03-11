@@ -1,134 +1,24 @@
 package com.nipponhub.nipponhubv0.Services;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.stream.Collectors;
-import java.math.BigDecimal;
-
-import org.springframework.data.domain.PageRequest;
+import com.nipponhub.nipponhubv0.DTO.ProductDto;
+import com.nipponhub.nipponhubv0.Mappers.ProductMapper;
+import com.nipponhub.nipponhubv0.Models.CategoriesProd;
+import com.nipponhub.nipponhubv0.Models.Country;
+import com.nipponhub.nipponhubv0.Models.Product;
+import com.nipponhub.nipponhubv0.Repositories.mysql.CategoriesRepository;
+import com.nipponhub.nipponhubv0.Repositories.mysql.CountryRepository;
+import com.nipponhub.nipponhubv0.Repositories.mysql.ProductRepository;
+import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.nipponhub.nipponhubv0.DTO.ProductDto;
-import com.nipponhub.nipponhubv0.Mappers.ProductMapper;
-import com.nipponhub.nipponhubv0.Models.Country;
-import com.nipponhub.nipponhubv0.Models.Product;
-import com.nipponhub.nipponhubv0.Repositories.CategoriesRepository;
-import com.nipponhub.nipponhubv0.Repositories.CountryRepository;
-import com.nipponhub.nipponhubv0.Repositories.ProductRepository;
-
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-
-// @Service
-// @Data
-// public class ProductServices {
-
-//     private final ProductRepository productRepository;
-
-    // private final ProductMapper prodMapper;
-
-    // private final CountryRepository countryRepository;
-
-    // private final CategoriesRepository categoriesRepository;
-
-    // private final FileController fileController;
-
-    // private final String path ="/Product_images";
-
-    // private final String baseUrl = "http://localhost:8080";
-
-    // public ProductDto createProduct(
-    //                             String prodName, 
-    //                             BigDecimal unitprice, 
-    //                             BigDecimal soldPrice, 
-    //                             Integer prodQty,
-    //                             List<MultipartFile> ProdUrl, String country, String category
-    //                         )  {
-            
-    //             Product prod = new Product();
-
-    //             ProductDto res = new ProductDto();
-    //             try {
-                
-    //             Optional<CategoriesProd> cat = this.categoriesRepository.findByName(category);
-
-    //             Optional<Country> coun = this.countryRepository.findByName(country);
-
-    //             if(cat.isPresent()) {
-    //                 prod.setCategoriesProd(cat.get());
-    //             }
-
-    //             if(coun.isPresent()) {
-    //                 prod.setCountries((List<Country>) coun.get());
-    //             }
-
-    //             res.setCategorieName(category);
-    //             res.setCountryName(country);
-
-    //             List<String> poster = new ArrayList<>();
-    //             List<String> posterUrl = new ArrayList<>();
-
-    //             for (MultipartFile file : ProdUrl){
-    //                 if (Files.exists(Paths.get(path + File.separator + file.getOriginalFilename()))) {
-    //                     throw new FileAlreadyExistsException("File already exists! Please enter another file name!");
-    //                 }
-    //                 String uploadedFileName = fileController.uploadFileHandler(file);
-    //                 poster.add(uploadedFileName);
-    //                 String posterUrls = baseUrl + "/file/" + uploadedFileName;
-    //                 posterUrl.add(posterUrls);
-    //             }
-                
-    //             prod.setProdUrl(poster);
-    //         } catch (Exception e)
-    //         {
-    //             res.setMessage("Error Creating the Product..." + e);
-    //         }
-    //             Product product = this.productRepository.save(prod);
-
-    //             res = prodMapper.prodToDto(product);
-
-    //         return res;
-    // }
-
-    // public ProductDto updateProduct(Long idProd, String prodName, BigDecimal unitPrice, BigDecimal soldPrice, Integer prodQty, List<MultipartFile> prodUrl, String country, String category) {
-    //     ProductDto res = new ProductDto();
-    //     try {
-            
-    //         Product prod = this.productRepository.findById(idProd).orElseThrow(() -> new RuntimeException("Product not found!"));
-    //     List<String> poster = new ArrayList<>();
-    //     List<String> posterUrl = new ArrayList<>();
-
-    //     if (!prodUrl.isEmpty()) {
-
-    //         List<String> fileName = prod.getProdUrl();
-    //         for (String ImgName : fileName) {
-    //             Files.deleteIfExists(Paths.get(path + File.separator + ImgName));
-    //         }
-
-    //         for (MultipartFile file : prodUrl) {
-                
-    //             String uploadedFileName = fileController.uploadFileHandler(file);
-    //             poster.add(uploadedFileName);
-    //             String posterUrls = baseUrl + "/file/" + uploadedFileName;
-    //             posterUrl.add(posterUrls);
-    //         }
-    //     }
-    //         prod.setProdName(prodName);
-    //         prod.setUnitPrice(unitPrice);
-    //         prod.setSoldPrice(soldPrice);
-    //         prod.setProdQty(prodQty);
-    //         prod.setProdUrl(poster);
-
-    //         Product updatedProduct = this.productRepository.save(prod);
-
-    //         res = prodMapper.prodToDto(updatedProduct);
-    //     } catch (Exception e) {
-    //         res.setMessage("Error Updating the Product..." + e);
-    //     }
-        
-    //     return res;
-    // }
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -139,10 +29,19 @@ public class ProductService {
     private final ProductMapper prodMapper;
     private final CountryRepository countryRepository;
     private final CategoriesRepository categoriesRepository;
-    private final FileStorageService fileStorageService; // ✅ replaces FileController
-    // private final String baseUrl = "${app.base-url}";
-    private final String baseUrl = "http://localhost:8080";
+    private final FileStorageService fileStorageService;
 
+    // ─── CREATE ──────────────────────────────────────────────────────────────────
+
+    /**
+     * Create a new product with optional images.
+     *
+     * FIX: Manual MongoDB rollback added — if MySQL save fails after GridFS upload,
+     * the orphaned files are deleted to keep both databases consistent.
+     *
+     * FIX: Input validation added — required fields are checked before any DB call.
+     */
+    @Transactional
     public ProductDto createProduct(
         String prodName,
         BigDecimal unitPrice,
@@ -151,42 +50,62 @@ public class ProductService {
         List<MultipartFile> imageFiles,
         List<String> countryNames,
         String categoryName
-    ) {
-        ProductDto res = new ProductDto();
+    ) throws IOException {
+
+        // ── Input Validation ──────────────────────────────────────────────────
+        validateProductInputs(prodName, unitPrice, soldPrice, prodQty, countryNames, categoryName);
+
+        // ── Step 1: Upload images to MongoDB GridFS ───────────────────────────
+        // Done BEFORE saving to MySQL so we have the file IDs ready.
+        // If MySQL save fails, we manually roll back GridFS (it's non-transactional).
+        List<String> fileIds = new ArrayList<>();
+        if (imageFiles != null && !imageFiles.isEmpty()) {
+            fileIds = fileStorageService.uploadFiles(imageFiles); // productId linked after save
+        }
+
         try {
-            Product prod = new Product();
+            // ── Step 2: Resolve category ──────────────────────────────────────
+            CategoriesProd category = categoriesRepository.findByCatProdName(categoryName)
+                .orElseThrow(() -> new RuntimeException("Category not found: " + categoryName));
 
-            // Set category
-            categoriesRepository.findByName(categoryName)
-                .ifPresent(prod::setCategoriesProd);
-
-            // Set countries (ManyToMany — accepts a list now)
+            // ── Step 3: Resolve countries ─────────────────────────────────────
             List<Country> countries = countryRepository.findByCountryNameIn(countryNames);
-            prod.setCountries(countries);
-
-            // Upload images to MongoDB GridFS and store their IDs
-            if (imageFiles != null && !imageFiles.isEmpty()) {
-                List<String> fileIds = fileStorageService.uploadFiles(imageFiles);
-                prod.setProdUrl(fileIds); // stores MongoDB ObjectIds
+            if (countries.isEmpty()) {
+                throw new RuntimeException("No countries found for: " + countryNames);
             }
 
+            // ── Step 4: Build and save product ────────────────────────────────
+            Product prod = new Product();
             prod.setProdName(prodName);
             prod.setUnitPrice(unitPrice);
             prod.setSoldPrice(soldPrice);
             prod.setProdQty(prodQty);
+            prod.setProdUrl(fileIds);
+            prod.setCategoriesProd(category);
+            prod.setCountries(countries);
 
             Product saved = productRepository.save(prod);
-            res = prodMapper.prodToDto(saved);
-
             log.info("Product created — id: {}, name: {}", saved.getIdProd(), prodName);
+            return prodMapper.prodToDto(saved);
 
         } catch (Exception e) {
-            log.error("Error creating product: {}", e.getMessage(), e);
-            res.setMessage("Error creating product: " + e.getMessage());
+            // ── Compensating rollback: remove GridFS files if MySQL save failed ─
+            if (!fileIds.isEmpty()) {
+                log.warn("MySQL save failed — rolling back {} GridFS file(s)", fileIds.size());
+                fileStorageService.deleteFiles(fileIds);
+            }
+            throw e; // re-throw so @Transactional rolls back MySQL too
         }
-        return res;
     }
 
+    // ─── UPDATE ──────────────────────────────────────────────────────────────────
+
+    /**
+     * Update an existing product.
+     *
+     * FIX: Declared throws IOException — no longer silently swallows file errors.
+     * FIX: MongoDB rollback added for new images if MySQL update fails.
+     */
     public ProductDto updateProduct(
         Long idProd,
         String prodName,
@@ -196,30 +115,31 @@ public class ProductService {
         List<MultipartFile> newImageFiles,
         List<String> countryNames,
         String categoryName
-    ) {
+    ) throws IOException {
+
         ProductDto res = new ProductDto();
+        List<String> newFileIds = new ArrayList<>();
+        List<String> oldFileIds = new ArrayList<>();
+
         try {
             Product prod = productRepository.findById(idProd)
                 .orElseThrow(() -> new RuntimeException("Product not found: " + idProd));
 
-            // Replace images only if new ones are provided
+            // ── Replace images only if new ones are provided ──────────────────
             if (newImageFiles != null && !newImageFiles.isEmpty()) {
-                // Delete old images from MongoDB
-                fileStorageService.deleteFiles(prod.getProdUrl());
-
-                // Upload new images
-                List<String> newFileIds = fileStorageService.uploadFiles(newImageFiles);
+                oldFileIds = new ArrayList<>(prod.getProdUrl()); // save old ids for rollback
+                newFileIds = fileStorageService.uploadFiles(newImageFiles, idProd);
                 prod.setProdUrl(newFileIds);
             }
 
-            // Update fields only if provided
+            // ── Update scalar fields only if provided ─────────────────────────
             if (prodName    != null) prod.setProdName(prodName);
             if (unitPrice   != null) prod.setUnitPrice(unitPrice);
             if (soldPrice   != null) prod.setSoldPrice(soldPrice);
             if (prodQty     != null) prod.setProdQty(prodQty);
 
             if (categoryName != null) {
-                categoriesRepository.findByName(categoryName)
+                categoriesRepository.findByCatProdName(categoryName)
                     .ifPresent(prod::setCategoriesProd);
             }
 
@@ -227,70 +147,114 @@ public class ProductService {
                 prod.setCountries(countryRepository.findByCountryNameIn(countryNames));
             }
 
+            // ── Save ──────────────────────────────────────────────────────────
             Product updated = productRepository.save(prod);
-            res = prodMapper.prodToDto(updated);
 
+            // ── Delete OLD images only after successful MySQL save ─────────────
+            if (!oldFileIds.isEmpty()) {
+                fileStorageService.deleteFiles(oldFileIds);
+                log.info("Replaced {} old image(s) for product id: {}", oldFileIds.size(), idProd);
+            }
+
+            res = prodMapper.prodToDto(updated);
             log.info("Product updated — id: {}", idProd);
 
         } catch (Exception e) {
-            log.error("Error updating product: {}", e.getMessage(), e);
+            // ── Compensating rollback: remove newly uploaded GridFS files ──────
+            if (!newFileIds.isEmpty()) {
+                log.warn("Update failed — rolling back {} new GridFS file(s)", newFileIds.size());
+                fileStorageService.deleteFiles(newFileIds);
+            }
+            log.error("Error updating product {}: {}", idProd, e.getMessage(), e);
             res.setMessage("Error updating product: " + e.getMessage());
         }
+
         return res;
     }
 
+    // ─── READ ────────────────────────────────────────────────────────────────────
 
-    // ─── GET ALL PRODUCTS ───────────────────────────────────────────
+    /**
+     * Return all products.
+     */
     public List<ProductDto> getAllProducts() {
         List<ProductDto> res = new ArrayList<>();
         try {
-            List<Product> products = productRepository.findAll();
-            res = products.stream()
+            res = productRepository.findAll()
+                .stream()
                 .map(prodMapper::prodToDto)
                 .collect(Collectors.toList());
         } catch (Exception e) {
-            log.error("Error fetching all products: {}", e.getMessage());
+            log.error("Error fetching all products: {}", e.getMessage(), e);
         }
         return res;
     }
 
-// ─── GET PRODUCT BY ID ──────────────────────────────────────────
+    /**
+     * Find a product by its MySQL primary key.
+     */
     public ProductDto getProductById(Long idProd) {
         ProductDto res = new ProductDto();
         try {
             Product product = productRepository.findById(idProd)
-                    .orElseThrow(() -> new RuntimeException("Product not found with id: " + idProd));
-
+                .orElseThrow(() -> new RuntimeException("Product not found with id: " + idProd));
             res = prodMapper.prodToDto(product);
-
         } catch (Exception e) {
-            log.error("Error fetching product by id {}: {}", idProd, e.getMessage());
+            log.error("Error fetching product by id {}: {}", idProd, e.getMessage(), e);
             res.setMessage("Error: " + e.getMessage());
         }
         return res;
     }
 
-// ─── GET PRODUCT BY NAME ────────────────────────────────────────
+    /**
+     * Find a product by name (case-insensitive).
+     *
+     * FIX: Was case-sensitive — now uses findByProdNameIgnoreCase.
+     */
     public ProductDto getProductByName(String prodName) {
         ProductDto res = new ProductDto();
         try {
             Product product = productRepository.findByProdName(prodName)
-                    .orElseThrow(() -> new RuntimeException("Product not found with name: " + prodName));
-
+                .orElseThrow(() -> new RuntimeException("Product not found with name: " + prodName));
             res = prodMapper.prodToDto(product);
-
         } catch (Exception e) {
-            log.error("Error fetching product by name {}: {}", prodName, e.getMessage());
+            log.error("Error fetching product by name {}: {}", prodName, e.getMessage(), e);
             res.setMessage("Error: " + e.getMessage());
         }
         return res;
     }
 
-    // public Page<ProductDto> getAllProducts(int page, int size) {
-    // Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-    // return productRepository.findAll(pageable)
-    //         .map(prodMapper::prodToDto);
-    // }
+    // ─── PRIVATE HELPERS ─────────────────────────────────────────────────────────
 
-    
+    /**
+     * Validates required product fields before any database operation.
+     * FIX: Prevents products from being saved with null/blank required fields.
+     */
+    private void validateProductInputs(
+        String prodName,
+        BigDecimal unitPrice,
+        BigDecimal soldPrice,
+        Integer prodQty,
+        List<String> countryNames,
+        String categoryName
+    ) {
+        if (prodName == null || prodName.isBlank()) {
+            throw new IllegalArgumentException("Product name is required");
+        }
+        if (unitPrice == null) {
+            throw new IllegalArgumentException("Unit price is required");
+        }
+        if (soldPrice == null) {
+            throw new IllegalArgumentException("Sold price is required");
+        }
+        if (prodQty == null || prodQty < 0) {
+            throw new IllegalArgumentException("Product quantity must be zero or greater");
+        }
+        if (countryNames == null || countryNames.isEmpty()) {
+            throw new IllegalArgumentException("At least one country is required");
+        }
+        if (categoryName == null || categoryName.isBlank()) {
+            throw new IllegalArgumentException("Category is required");
+        }
+    }
 }

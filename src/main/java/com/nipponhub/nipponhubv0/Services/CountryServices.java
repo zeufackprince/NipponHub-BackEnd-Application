@@ -5,7 +5,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 import com.nipponhub.nipponhubv0.Models.Country;
-import com.nipponhub.nipponhubv0.Repositories.CountryRepository;
+import com.nipponhub.nipponhubv0.Repositories.mysql.CountryRepository;
 
 import lombok.Data;
 

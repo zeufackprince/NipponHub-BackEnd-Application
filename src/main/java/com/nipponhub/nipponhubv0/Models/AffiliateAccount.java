@@ -11,10 +11,12 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "affiliate_account")
 @Data
+@NoArgsConstructor
 public class AffiliateAccount {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

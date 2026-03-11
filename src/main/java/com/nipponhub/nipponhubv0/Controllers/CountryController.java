@@ -2,6 +2,7 @@ package com.nipponhub.nipponhubv0.Controllers;
 
 import java.util.List;
 
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -30,7 +31,7 @@ public class CountryController {
         return this.countryServices.deleteCountry(idCountry);
     }
 
-    @PostMapping("/getAllCountries")
+    @GetMapping("/getAllCountries")
     public List<Country> getAllCountries() {
         return this.countryServices.getAllCountries();
     }
