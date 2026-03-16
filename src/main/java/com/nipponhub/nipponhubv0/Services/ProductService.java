@@ -157,6 +157,7 @@ public class ProductService {
      * No lazy proxy, no session dependency, no @Transactional needed for reads.
      * @Transactional kept as an extra safety net.
      */
+    
     @Transactional
     public List<ProductDto> getAllProducts() {
         try {
