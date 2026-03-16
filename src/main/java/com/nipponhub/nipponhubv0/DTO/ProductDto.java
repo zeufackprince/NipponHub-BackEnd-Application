@@ -1,12 +1,24 @@
 package com.nipponhub.nipponhubv0.DTO;
 
 import java.math.BigDecimal;
-import java.util.Date;
+import java.time.LocalDateTime;
 import java.util.List;
 
-import lombok.Data;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+/**
+ * Data Transfer Object for Product responses.
+ *
+ * @JsonInclude(NON_NULL) ensures null fields are omitted from JSON output,
+ * keeping API responses clean — especially for error cases where only
+ * "message" is set.
+ */
 @Data
+@NoArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class ProductDto {
 
     private Long IdProd;
@@ -23,10 +35,19 @@ public class ProductDto {
 
     private String countryName;
 
-    private String categorieName;
+    private String categoryName;
+
+    private Long categoryId;
+
+    private String franchiseName;
+
+    private Long franchiseId;
+
+    private List<String> countries;
 
     private List<String> ProdUrl;
 
-    private Date createdAt;
-    
+    private LocalDateTime createdAt;
+
+
 }

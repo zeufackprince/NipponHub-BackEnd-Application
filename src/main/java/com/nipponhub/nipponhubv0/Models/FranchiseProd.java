@@ -7,11 +7,17 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import lombok.Data;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Table
 @Entity
-@Data
+@AllArgsConstructor
+@Setter
+@Getter
+@NoArgsConstructor
 public class FranchiseProd {
 
     @Id

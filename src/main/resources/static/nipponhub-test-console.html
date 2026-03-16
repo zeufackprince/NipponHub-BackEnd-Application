@@ -1,0 +1,1798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NipponHub — API Test Console</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg:       #0a0a0f;
+    --surface:  #12121a;
+    --panel:    #1a1a26;
+    --border:   #2a2a3d;
+    --accent:   #e84545;
+    --accent2:  #f5a623;
+    --green:    #2dce89;
+    --blue:     #4d9fff;
+    --text:     #e8e8f0;
+    --muted:    #6b6b8a;
+    --font:     'Syne', sans-serif;
+    --mono:     'JetBrains Mono', monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── NOISE TEXTURE ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── HEADER ── */
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(10,10,15,0.92);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 64px;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 1.2rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+
+  .logo-mark {
+    width: 32px; height: 32px;
+    background: var(--accent);
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    display: grid;
+    place-items: center;
+    font-size: 0.65rem;
+    font-weight: 800;
+    color: white;
+    letter-spacing: 0;
+    animation: pulse-mark 3s ease-in-out infinite;
+  }
+
+  @keyframes pulse-mark {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(232,69,69,0.4); }
+    50% { box-shadow: 0 0 0 8px rgba(232,69,69,0); }
+  }
+
+  .base-url-badge {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 4px 12px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .status-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: blink 2s ease-in-out infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* ── LAYOUT ── */
+  .layout {
+    display: grid;
+    grid-template-columns: 220px 1fr 360px;
+    gap: 0;
+    height: calc(100vh - 64px);
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    border-right: 1px solid var(--border);
+    padding: 1.5rem 0;
+    overflow-y: auto;
+    background: var(--surface);
+  }
+
+  .sidebar-section {
+    margin-bottom: 0.5rem;
+  }
+
+  .sidebar-label {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 0.5rem 1.25rem;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0.6rem 1.25rem;
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--muted);
+    border-left: 2px solid transparent;
+    transition: all 0.15s;
+  }
+
+  .nav-item:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+
+  .nav-item.active {
+    color: var(--text);
+    border-left-color: var(--accent);
+    background: rgba(232,69,69,0.07);
+  }
+
+  .method-badge {
+    font-family: var(--mono);
+    font-size: 0.55rem;
+    font-weight: 500;
+    padding: 2px 6px;
+    border-radius: 3px;
+    min-width: 34px;
+    text-align: center;
+  }
+
+  .GET    { background: rgba(77,159,255,0.15); color: var(--blue); }
+  .POST   { background: rgba(45,206,137,0.15); color: var(--green); }
+  .DELETE { background: rgba(232,69,69,0.15);  color: var(--accent); }
+
+  /* ── MAIN PANEL ── */
+  .main {
+    overflow-y: auto;
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .section-title {
+    font-size: 1.4rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 0.25rem;
+  }
+
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+
+  .card:hover { border-color: #3a3a55; }
+
+  .card-header {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(255,255,255,0.02);
+  }
+
+  .card-header h3 {
+    font-size: 0.88rem;
+    font-weight: 700;
+    flex: 1;
+  }
+
+  .endpoint-path {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--muted);
+  }
+
+  .card-body { padding: 1.25rem; }
+
+  /* ── FORM ELEMENTS ── */
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.75rem;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .form-group.full { grid-column: 1 / -1; }
+
+  label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  input, select, textarea {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 0.55rem 0.8rem;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    width: 100%;
+  }
+
+  input:focus, select:focus, textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(232,69,69,0.12);
+  }
+
+  select option { background: var(--bg); }
+
+  textarea { resize: vertical; min-height: 80px; }
+
+  .file-input-wrapper {
+    position: relative;
+    border: 1px dashed var(--border);
+    border-radius: 7px;
+    padding: 1rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--bg);
+  }
+
+  .file-input-wrapper:hover {
+    border-color: var(--accent);
+    background: rgba(232,69,69,0.04);
+  }
+
+  .file-input-wrapper input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .file-label {
+    font-size: 0.75rem;
+    color: var(--muted);
+    pointer-events: none;
+  }
+
+  .file-label span { color: var(--accent); font-weight: 700; }
+
+  /* ── BUTTONS ── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0.6rem 1.2rem;
+    border-radius: 7px;
+    border: none;
+    font-family: var(--font);
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.02em;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: white;
+  }
+
+  .btn-primary:hover {
+    background: #ff5555;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 20px rgba(232,69,69,0.35);
+  }
+
+  .btn-secondary {
+    background: var(--border);
+    color: var(--text);
+  }
+
+  .btn-secondary:hover { background: #3a3a55; }
+
+  .btn-danger {
+    background: rgba(232,69,69,0.15);
+    color: var(--accent);
+    border: 1px solid rgba(232,69,69,0.3);
+  }
+
+  .btn-danger:hover { background: rgba(232,69,69,0.25); }
+
+  .btn-success {
+    background: rgba(45,206,137,0.15);
+    color: var(--green);
+    border: 1px solid rgba(45,206,137,0.3);
+  }
+
+  .btn-success:hover { background: rgba(45,206,137,0.25); }
+
+  .btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none !important;
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    margin-top: 1rem;
+    flex-wrap: wrap;
+  }
+
+  /* ── LOG PANEL ── */
+  .log-panel {
+    border-left: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .log-header {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .log-header-right { display: flex; gap: 8px; align-items: center; }
+
+  .log-count {
+    background: var(--accent);
+    color: white;
+    font-size: 0.6rem;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 20px;
+    min-width: 20px;
+    text-align: center;
+  }
+
+  .log-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .log-entry {
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    animation: slide-in 0.2s ease;
+  }
+
+  @keyframes slide-in {
+    from { opacity: 0; transform: translateX(10px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  .log-entry-header {
+    padding: 0.5rem 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .log-entry.success .log-entry-header { background: rgba(45,206,137,0.1); color: var(--green); }
+  .log-entry.error   .log-entry-header { background: rgba(232,69,69,0.1);  color: var(--accent); }
+  .log-entry.info    .log-entry-header { background: rgba(77,159,255,0.1); color: var(--blue); }
+
+  .log-entry-time { margin-left: auto; color: var(--muted); font-weight: 400; }
+
+  .log-entry-body {
+    padding: 0.75rem;
+    background: var(--bg);
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 200px;
+    overflow-y: auto;
+    display: none;
+  }
+
+  .log-entry-body.open { display: block; }
+
+  /* ── PRODUCTS DISPLAY GRID ── */
+  .products-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1rem;
+  }
+
+  .product-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: all 0.2s;
+    animation: fade-up 0.3s ease;
+  }
+
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .product-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+  }
+
+  .product-img {
+    width: 100%;
+    height: 140px;
+    object-fit: cover;
+    background: var(--bg);
+    display: block;
+  }
+
+  .product-img-placeholder {
+    width: 100%;
+    height: 140px;
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    color: var(--border);
+  }
+
+  .product-info { padding: 0.85rem; }
+
+  .product-name {
+    font-size: 0.85rem;
+    font-weight: 700;
+    margin-bottom: 0.4rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .product-meta {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.6rem;
+  }
+
+  .tag {
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    padding: 2px 7px;
+    border-radius: 4px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+
+  .price {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--accent2);
+    font-weight: 500;
+  }
+
+  .product-actions {
+    display: flex;
+    gap: 0.4rem;
+    margin-top: 0.6rem;
+  }
+
+  .product-actions .btn { font-size: 0.7rem; padding: 0.3rem 0.7rem; flex: 1; justify-content: center; }
+
+  /* ── IMAGE GALLERY ── */
+  .image-gallery {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-top: 0.75rem;
+  }
+
+  .gallery-img {
+    width: 70px;
+    height: 70px;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .gallery-img:hover {
+    border-color: var(--accent);
+    transform: scale(1.05);
+  }
+
+  /* ── TABS ── */
+  .tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 1.25rem;
+  }
+
+  .tab {
+    padding: 0.6rem 1.1rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: all 0.15s;
+  }
+
+  .tab:hover { color: var(--text); }
+
+  .tab.active {
+    color: var(--text);
+    border-bottom-color: var(--accent);
+  }
+
+  .tab-pane { display: none; }
+  .tab-pane.active { display: block; }
+
+  /* ── SPINNER ── */
+  .spinner {
+    width: 14px; height: 14px;
+    border: 2px solid rgba(255,255,255,0.2);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    display: none;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── SECTION VISIBILITY ── */
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* ── EMPTY STATE ── */
+  .empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--muted);
+  }
+
+  .empty-state .icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
+  .empty-state p { font-size: 0.82rem; }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+  /* ── TOAST ── */
+  .toast-container {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .toast {
+    padding: 0.75rem 1.1rem;
+    border-radius: 8px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    min-width: 240px;
+    animation: toast-in 0.25s ease;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+  }
+
+  @keyframes toast-in {
+    from { opacity: 0; transform: translateY(10px) scale(0.95); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .toast.success { background: rgba(45,206,137,0.15); border: 1px solid var(--green); color: var(--green); }
+  .toast.error   { background: rgba(232,69,69,0.15);  border: 1px solid var(--accent); color: var(--accent); }
+  .toast.info    { background: rgba(77,159,255,0.15); border: 1px solid var(--blue); color: var(--blue); }
+
+  /* ── MODAL ── */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    backdrop-filter: blur(4px);
+    z-index: 999;
+    display: none;
+    place-items: center;
+  }
+
+  .modal-overlay.open { display: grid; }
+
+  .modal {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.5rem;
+    width: 90%;
+    max-width: 500px;
+    animation: modal-in 0.2s ease;
+  }
+
+  @keyframes modal-in {
+    from { opacity: 0; transform: scale(0.95); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.25rem;
+  }
+
+  .modal-title { font-size: 1rem; font-weight: 800; }
+
+  .modal-close {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 1.2rem;
+    line-height: 1;
+    transition: color 0.15s;
+  }
+
+  .modal-close:hover { color: var(--accent); }
+
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 1.25rem 0;
+  }
+</style>
+</head>
+<body>
+
+<!-- ── HEADER ── -->
+<header>
+  <div class="logo">
+    <div class="logo-mark">NH</div>
+    NipponHub <span style="color:var(--muted);font-weight:400;font-size:0.85rem">API Console</span>
+  </div>
+  <div style="display:flex;gap:1rem;align-items:center">
+    <div class="base-url-badge">
+      <div class="status-dot"></div>
+      <span id="baseUrlDisplay">http://localhost:8080</span>
+    </div>
+    <button class="btn btn-secondary" style="font-size:0.72rem;padding:0.4rem 0.8rem" onclick="openBaseUrlModal()">⚙ Config</button>
+  </div>
+</header>
+
+<!-- ── LAYOUT ── -->
+<div class="layout">
+
+  <!-- ── SIDEBAR ── -->
+  <nav class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Products</div>
+      <div class="nav-item active" onclick="showSection('products')">
+        <span class="method-badge POST">POST</span> Create
+      </div>
+      <div class="nav-item" onclick="showSection('products'); switchTab('tab-update')">
+        <span class="method-badge POST">POST</span> Update
+      </div>
+      <div class="nav-item" onclick="showSection('products'); switchTab('tab-list')">
+        <span class="method-badge GET">GET</span> List All
+      </div>
+      <div class="nav-item" onclick="showSection('products'); switchTab('tab-getone')">
+        <span class="method-badge GET">GET</span> Get by ID
+      </div>
+      <div class="nav-item" onclick="showSection('products'); switchTab('tab-search')">
+        <span class="method-badge GET">GET</span> Search
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Files</div>
+      <div class="nav-item" onclick="showSection('files')">
+        <span class="method-badge POST">POST</span> Upload
+      </div>
+      <div class="nav-item" onclick="showSection('files'); switchTab('tab-file-get')">
+        <span class="method-badge GET">GET</span> Serve File
+      </div>
+      <div class="nav-item" onclick="showSection('files'); switchTab('tab-file-meta')">
+        <span class="method-badge GET">GET</span> Metadata
+      </div>
+      <div class="nav-item" onclick="showSection('files'); switchTab('tab-file-delete')">
+        <span class="method-badge DELETE">DEL</span> Delete
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Reference Data</div>
+      <div class="nav-item" onclick="showSection('categories')">
+        <span class="method-badge GET">GET</span> Categories
+      </div>
+      <div class="nav-item" onclick="showSection('countries')">
+        <span class="method-badge GET">GET</span> Countries
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── MAIN ── -->
+  <main class="main">
+
+    <!-- ═══ PRODUCTS SECTION ═══ -->
+    <div id="section-products" class="section active">
+      <div class="section-title">🛍 Products</div>
+
+      <div class="tabs">
+        <div class="tab active" id="tab-create" onclick="switchTab('tab-create')">Create</div>
+        <div class="tab" id="tab-update" onclick="switchTab('tab-update')">Update</div>
+        <div class="tab" id="tab-list" onclick="switchTab('tab-list')">All Products</div>
+        <div class="tab" id="tab-getone" onclick="switchTab('tab-getone')">By ID</div>
+        <div class="tab" id="tab-search" onclick="switchTab('tab-search')">Search</div>
+      </div>
+
+      <!-- CREATE -->
+      <div class="tab-pane active" id="pane-create">
+        <div class="card">
+          <div class="card-header">
+            <span class="method-badge POST">POST</span>
+            <h3>Create New Product</h3>
+            <span class="endpoint-path">/api/v0/product/newProduct</span>
+          </div>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Product Name *</label>
+                <input id="c_name" type="text" placeholder="e.g. Katana Sword" />
+              </div>
+              <div class="form-group">
+                <label>Unit Price *</label>
+                <input id="c_unitPrice" type="number" step="0.01" placeholder="150.00" />
+              </div>
+              <div class="form-group">
+                <label>Sold Price *</label>
+                <input id="c_soldPrice" type="number" step="0.01" placeholder="199.00" />
+              </div>
+              <div class="form-group">
+                <label>Quantity *</label>
+                <input id="c_qty" type="number" placeholder="10" />
+              </div>
+              <div class="form-group">
+                <label>Category *</label>
+                <input id="c_category" type="text" placeholder="e.g. Weapons" />
+              </div>
+              <div class="form-group">
+                <label>Countries * (comma-separated)</label>
+                <input id="c_countries" type="text" placeholder="Japan, France" />
+              </div>
+              <div class="form-group full">
+                <label>Product Images</label>
+                <div class="file-input-wrapper">
+                  <input type="file" id="c_images" multiple accept="image/*" onchange="updateFileLabel('c_images','c_file_label')" />
+                  <div class="file-label" id="c_file_label">
+                    <span>Browse</span> or drop images here (multiple allowed)
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-primary" onclick="createProduct()">
+                <div class="spinner" id="spinner-create"></div>
+                ✦ Create Product
+              </button>
+              <button class="btn btn-secondary" onclick="resetForm('create')">Reset</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- UPDATE -->
+      <div class="tab-pane" id="pane-update">
+        <div class="card">
+          <div class="card-header">
+            <span class="method-badge POST">POST</span>
+            <h3>Update Product</h3>
+            <span class="endpoint-path">/api/v0/product/updateProduct/{id}</span>
+          </div>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Product ID *</label>
+                <input id="u_id" type="number" placeholder="1" />
+              </div>
+              <div class="form-group">
+                <label>Product Name</label>
+                <input id="u_name" type="text" placeholder="Leave blank to keep existing" />
+              </div>
+              <div class="form-group">
+                <label>Unit Price</label>
+                <input id="u_unitPrice" type="number" step="0.01" placeholder="Leave blank to keep existing" />
+              </div>
+              <div class="form-group">
+                <label>Sold Price</label>
+                <input id="u_soldPrice" type="number" step="0.01" placeholder="Leave blank to keep existing" />
+              </div>
+              <div class="form-group">
+                <label>Quantity</label>
+                <input id="u_qty" type="number" placeholder="Leave blank to keep existing" />
+              </div>
+              <div class="form-group">
+                <label>Category</label>
+                <input id="u_category" type="text" placeholder="Leave blank to keep existing" />
+              </div>
+              <div class="form-group">
+                <label>Countries (comma-separated)</label>
+                <input id="u_countries" type="text" placeholder="Leave blank to keep existing" />
+              </div>
+              <div class="form-group full">
+                <label>Replace Images (optional)</label>
+                <div class="file-input-wrapper">
+                  <input type="file" id="u_images" multiple accept="image/*" onchange="updateFileLabel('u_images','u_file_label')" />
+                  <div class="file-label" id="u_file_label">
+                    <span>Browse</span> or drop new images here
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-primary" onclick="updateProduct()">
+                <div class="spinner" id="spinner-update"></div>
+                ✦ Update Product
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LIST ALL -->
+      <div class="tab-pane" id="pane-list">
+        <div class="card">
+          <div class="card-header">
+            <span class="method-badge GET">GET</span>
+            <h3>All Products</h3>
+            <span class="endpoint-path">/api/v0/product/all</span>
+          </div>
+          <div class="card-body">
+            <div class="btn-row" style="margin-top:0;margin-bottom:1rem">
+              <button class="btn btn-success" onclick="fetchAllProducts()">
+                <div class="spinner" id="spinner-list"></div>
+                ↻ Fetch All Products
+              </button>
+            </div>
+            <div id="products-grid-container">
+              <div class="empty-state">
+                <div class="icon">📦</div>
+                <p>Click "Fetch All Products" to load</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- GET BY ID -->
+      <div class="tab-pane" id="pane-getone">
+        <div class="card">
+          <div class="card-header">
+            <span class="method-badge GET">GET</span>
+            <h3>Get Product by ID</h3>
+            <span class="endpoint-path">/api/v0/product/{idProd}</span>
+          </div>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Product ID</label>
+                <input id="get_id" type="number" placeholder="1" />
+              </div>
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-success" onclick="getProductById()">
+                <div class="spinner" id="spinner-getone"></div>
+                ↻ Fetch
+              </button>
+            </div>
+            <div id="single-product-result" style="margin-top:1rem"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SEARCH -->
+      <div class="tab-pane" id="pane-search">
+        <div class="card">
+          <div class="card-header">
+            <span class="method-badge GET">GET</span>
+            <h3>Search Product by Name</h3>
+            <span class="endpoint-path">/api/v0/product/search?prodName=...</span>
+          </div>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Product Name</label>
+                <input id="search_name" type="text" placeholder="Katana" />
+              </div>
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-success" onclick="searchProduct()">
+                <div class="spinner" id="spinner-search"></div>
+                ↻ Search
+              </button>
+            </div>
+            <div id="search-result" style="margin-top:1rem"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ FILES SECTION ═══ -->
+    <div id="section-files" class="section">
+      <div class="section-title">🖼 Files</div>
+
+      <div class="tabs">
+        <div class="tab active" id="tab-file-upload" onclick="switchTab('tab-file-upload')">Upload</div>
+        <div class="tab" id="tab-file-get" onclick="switchTab('tab-file-get')">Serve</div>
+        <div class="tab" id="tab-file-meta" onclick="switchTab('tab-file-meta')">Metadata</div>
+        <div class="tab" id="tab-file-delete" onclick="switchTab('tab-file-delete')">Delete</div>
+        <div class="tab" id="tab-file-product" onclick="switchTab('tab-file-product')">By Product</div>
+      </div>
+
+      <!-- UPLOAD -->
+      <div class="tab-pane active" id="pane-file-upload">
+        <div class="card">
+          <div class="card-header">
+            <span class="method-badge POST">POST</span>
+            <h3>Upload File</h3>
+            <span class="endpoint-path">/file/upload</span>
+          </div>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Product ID (optional)</label>
+                <input id="f_productId" type="number" placeholder="Link to product" />
+              </div>
+              <div class="form-group full">
+                <label>Image File</label>
+                <div class="file-input-wrapper">
+                  <input type="file" id="f_file" accept="image/*" onchange="updateFileLabel('f_file','f_file_label'); previewUpload()" />
+                  <div class="file-label" id="f_file_label"><span>Browse</span> or drop image here</div>
+                </div>
+              </div>
+              <div class="form-group full">
+                <div id="upload-preview" style="display:none">
+                  <label>Preview</label>
+                  <img id="upload-preview-img" style="max-height:120px;border-radius:8px;border:1px solid var(--border);margin-top:6px" />
+                </div>
+              </div>
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-primary" onclick="uploadFile()">
+                <div class="spinner" id="spinner-file-upload"></div>
+                ↑ Upload
+              </button>
+            </div>
+            <div id="upload-result" style="margin-top:1rem"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SERVE -->
+      <div class="tab-pane" id="pane-file-get">
+        <div class="card">
+          <div class="card-header">
+            <span class="method-badge GET">GET</span>
+            <h3>Serve File by ID</h3>
+            <span class="endpoint-path">/file/{fileId}</span>
+          </div>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="form-group full">
+                <label>GridFS File ID</label>
+                <input id="serve_id" type="text" placeholder="64f3a2b1c3d4e5f6a7b8c9d0" />
+              </div>
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-success" onclick="serveFile()">↻ Load Image</button>
+            </div>
+            <div id="serve-result" style="margin-top:1rem"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- METADATA -->
+      <div class="tab-pane" id="pane-file-meta">
+        <div class="card">
+          <div class="card-header">
+            <span class="method-badge GET">GET</span>
+            <h3>File Metadata</h3>
+            <span class="endpoint-path">/file/metadata/{fileId}</span>
+          </div>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="form-group full">
+                <label>GridFS File ID</label>
+                <input id="meta_id" type="text" placeholder="64f3a2b1c3d4e5f6a7b8c9d0" />
+              </div>
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-success" onclick="getFileMeta()">
+                <div class="spinner" id="spinner-meta"></div>
+                ↻ Get Metadata
+              </button>
+            </div>
+            <div id="meta-result" style="margin-top:1rem"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DELETE -->
+      <div class="tab-pane" id="pane-file-delete">
+        <div class="card">
+          <div class="card-header">
+            <span class="method-badge DELETE">DELETE</span>
+            <h3>Delete File</h3>
+            <span class="endpoint-path">/file/{fileId}</span>
+          </div>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="form-group full">
+                <label>GridFS File ID</label>
+                <input id="del_file_id" type="text" placeholder="64f3a2b1c3d4e5f6a7b8c9d0" />
+              </div>
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-danger" onclick="deleteFile()">
+                <div class="spinner" id="spinner-file-delete"></div>
+                ✕ Delete File
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BY PRODUCT -->
+      <div class="tab-pane" id="pane-file-product">
+        <div class="card">
+          <div class="card-header">
+            <span class="method-badge GET">GET</span>
+            <h3>Files by Product</h3>
+            <span class="endpoint-path">/file/product/{productId}</span>
+          </div>
+          <div class="card-body">
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Product ID</label>
+                <input id="fp_id" type="number" placeholder="1" />
+              </div>
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-success" onclick="getFilesByProduct()">
+                <div class="spinner" id="spinner-fp"></div>
+                ↻ Load Files
+              </button>
+            </div>
+            <div id="fp-result" style="margin-top:1rem"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ CATEGORIES SECTION ═══ -->
+    <div id="section-categories" class="section">
+      <div class="section-title">🏷 Categories</div>
+      <div class="card">
+        <div class="card-header">
+          <span class="method-badge GET">GET</span>
+          <h3>All Categories</h3>
+          <span class="endpoint-path">/api/v0/categories/all</span>
+        </div>
+        <div class="card-body">
+          <div class="btn-row" style="margin-top:0;margin-bottom:1rem">
+            <button class="btn btn-success" onclick="fetchCategories()">
+              <div class="spinner" id="spinner-cat"></div>
+              ↻ Fetch Categories
+            </button>
+          </div>
+          <div id="categories-result">
+            <div class="empty-state">
+              <div class="icon">🏷</div>
+              <p>Click to load categories</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:1.25rem">
+        <div class="card-header">
+          <span class="method-badge GET">GET</span>
+          <h3>Category by ID</h3>
+          <span class="endpoint-path">/api/v0/categories/{id}</span>
+        </div>
+        <div class="card-body">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Category ID</label>
+              <input id="cat_id" type="number" placeholder="1" />
+            </div>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-success" onclick="getCategoryById()">↻ Fetch</button>
+          </div>
+          <div id="cat-single-result" style="margin-top:1rem"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ COUNTRIES SECTION ═══ -->
+    <div id="section-countries" class="section">
+      <div class="section-title">🌍 Countries</div>
+      <div class="card">
+        <div class="card-header">
+          <span class="method-badge GET">GET</span>
+          <h3>All Countries</h3>
+          <span class="endpoint-path">/api/v0/countries/all</span>
+        </div>
+        <div class="card-body">
+          <div class="btn-row" style="margin-top:0;margin-bottom:1rem">
+            <button class="btn btn-success" onclick="fetchCountries()">
+              <div class="spinner" id="spinner-country"></div>
+              ↻ Fetch Countries
+            </button>
+          </div>
+          <div id="countries-result">
+            <div class="empty-state">
+              <div class="icon">🌍</div>
+              <p>Click to load countries</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:1.25rem">
+        <div class="card-header">
+          <span class="method-badge GET">GET</span>
+          <h3>Country by ID</h3>
+          <span class="endpoint-path">/api/v0/countries/{id}</span>
+        </div>
+        <div class="card-body">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Country ID</label>
+              <input id="country_id" type="number" placeholder="1" />
+            </div>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-success" onclick="getCountryById()">↻ Fetch</button>
+          </div>
+          <div id="country-single-result" style="margin-top:1rem"></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ── LOG PANEL ── -->
+  <aside class="log-panel">
+    <div class="log-header">
+      <span>Response Log</span>
+      <div class="log-header-right">
+        <span class="log-count" id="log-count">0</span>
+        <button class="btn btn-secondary" style="font-size:0.65rem;padding:0.25rem 0.6rem" onclick="clearLogs()">Clear</button>
+      </div>
+    </div>
+    <div class="log-scroll" id="log-scroll">
+      <div class="empty-state" style="padding:2rem 0.5rem">
+        <div class="icon">📋</div>
+        <p>API responses will appear here</p>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<!-- ── BASE URL MODAL ── -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">⚙ API Configuration</div>
+      <button class="modal-close" onclick="closeBaseUrlModal()">✕</button>
+    </div>
+    <div class="form-group">
+      <label>Base URL</label>
+      <input id="modal-base-url" type="text" placeholder="http://localhost:8080" />
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="saveBaseUrl()">Save</button>
+      <button class="btn btn-secondary" onclick="closeBaseUrlModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── TOAST CONTAINER ── -->
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+// ════════════════════════════════════════════════════════════
+//  CONFIG
+// ════════════════════════════════════════════════════════════
+let BASE_URL = 'http://localhost:8080';
+let logCount = 0;
+let activeSection = 'products';
+
+// ── Base URL modal ──
+function openBaseUrlModal() {
+  document.getElementById('modal-base-url').value = BASE_URL;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function closeBaseUrlModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+function saveBaseUrl() {
+  BASE_URL = document.getElementById('modal-base-url').value.replace(/\/$/, '');
+  document.getElementById('baseUrlDisplay').textContent = BASE_URL;
+  closeBaseUrlModal();
+  toast('Base URL updated', 'success');
+}
+
+// ════════════════════════════════════════════════════════════
+//  NAV
+// ════════════════════════════════════════════════════════════
+function showSection(name) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.getElementById('section-' + name).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  activeSection = name;
+
+  // reset tabs to first
+  const firstTab = document.querySelector(`#section-${name} .tab`);
+  if (firstTab) switchTabEl(firstTab);
+}
+
+function switchTab(tabId) {
+  const tabEl = document.getElementById(tabId);
+  if (tabEl) switchTabEl(tabEl);
+}
+
+function switchTabEl(tabEl) {
+  const parent = tabEl.closest('.section') || document.body;
+  parent.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  tabEl.classList.add('active');
+
+  const paneId = 'pane-' + tabEl.id.replace('tab-', '');
+  parent.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  const pane = document.getElementById(paneId);
+  if (pane) pane.classList.add('active');
+}
+
+// ════════════════════════════════════════════════════════════
+//  UTILS
+// ════════════════════════════════════════════════════════════
+function toast(msg, type = 'info') {
+  const c = document.getElementById('toast-container');
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  const icon = type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ';
+  el.innerHTML = `<span>${icon}</span><span>${msg}</span>`;
+  c.appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+function log(label, data, type = 'info') {
+  const scroll = document.getElementById('log-scroll');
+
+  // remove empty state
+  const empty = scroll.querySelector('.empty-state');
+  if (empty) empty.remove();
+
+  logCount++;
+  document.getElementById('log-count').textContent = logCount;
+
+  const entry = document.createElement('div');
+  entry.className = `log-entry ${type}`;
+
+  const now = new Date().toLocaleTimeString();
+  entry.innerHTML = `
+    <div class="log-entry-header" onclick="this.nextElementSibling.classList.toggle('open')">
+      <span>${label}</span>
+      <span class="log-entry-time">${now}</span>
+    </div>
+    <div class="log-entry-body open">${typeof data === 'object' ? JSON.stringify(data, null, 2) : data}</div>
+  `;
+  scroll.prepend(entry);
+}
+
+function clearLogs() {
+  document.getElementById('log-scroll').innerHTML =
+    '<div class="empty-state" style="padding:2rem 0.5rem"><div class="icon">📋</div><p>Cleared</p></div>';
+  logCount = 0;
+  document.getElementById('log-count').textContent = '0';
+}
+
+function spin(id, on) {
+  const el = document.getElementById('spinner-' + id);
+  if (el) el.style.display = on ? 'block' : 'none';
+}
+
+function updateFileLabel(inputId, labelId) {
+  const input = document.getElementById(inputId);
+  const label = document.getElementById(labelId);
+  if (!input || !label) return;
+  const files = input.files;
+  label.innerHTML = files.length > 1
+    ? `<span>${files.length} files</span> selected`
+    : `<span>${files[0]?.name || 'Browse'}</span> selected`;
+}
+
+function previewUpload() {
+  const input = document.getElementById('f_file');
+  const preview = document.getElementById('upload-preview');
+  const img = document.getElementById('upload-preview-img');
+  if (input.files && input.files[0]) {
+    img.src = URL.createObjectURL(input.files[0]);
+    preview.style.display = 'block';
+  }
+}
+
+function resetForm(type) {
+  if (type === 'create') {
+    ['c_name','c_unitPrice','c_soldPrice','c_qty','c_category','c_countries'].forEach(id => {
+      document.getElementById(id).value = '';
+    });
+    document.getElementById('c_file_label').innerHTML = '<span>Browse</span> or drop images here';
+  }
+}
+
+function renderProductCard(p) {
+  const images = p.prodUrl || [];
+  const imgHtml = images.length
+    ? `<img class="product-img" src="${BASE_URL}/file/${images[0]}" alt="${p.prodName}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+       <div class="product-img-placeholder" style="display:none">🖼</div>`
+    : `<div class="product-img-placeholder">🖼</div>`;
+
+  const countries = (p.countries || []).map(c => `<span class="tag">${c.countryName || c}</span>`).join('');
+  const category = p.categoriesProd?.catProdName || p.category || '—';
+
+  return `
+    <div class="product-card">
+      ${imgHtml}
+      <div class="product-info">
+        <div class="product-name">${p.prodName || '—'}</div>
+        <div class="product-meta">
+          <span class="tag">${category}</span>
+          ${countries}
+        </div>
+        <div class="price">¥${p.soldPrice ?? '—'} <span style="color:var(--muted);text-decoration:line-through;font-size:0.65rem">¥${p.unitPrice ?? ''}</span></div>
+        <div style="font-family:var(--mono);font-size:0.65rem;color:var(--muted);margin-top:3px">Qty: ${p.prodQty ?? '—'} · ID: ${p.idProd}</div>
+        ${images.length > 1 ? `<div class="image-gallery">${images.slice(1).map(id =>
+          `<img class="gallery-img" src="${BASE_URL}/file/${id}" alt="img" onerror="this.style.display='none'" />`
+        ).join('')}</div>` : ''}
+        <div class="product-actions">
+          <button class="btn btn-secondary" onclick="prefillUpdate(${JSON.stringify(p).replace(/"/g,"&quot;")})">Edit</button>
+          <button class="btn btn-danger" onclick="deleteProductPrompt(${p.idProd})">✕</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function prefillUpdate(p) {
+  document.getElementById('u_id').value = p.idProd || '';
+  document.getElementById('u_name').value = p.prodName || '';
+  document.getElementById('u_unitPrice').value = p.unitPrice || '';
+  document.getElementById('u_soldPrice').value = p.soldPrice || '';
+  document.getElementById('u_qty').value = p.prodQty || '';
+  document.getElementById('u_category').value = p.categoriesProd?.catProdName || '';
+  document.getElementById('u_countries').value = (p.countries || []).map(c => c.countryName || c).join(', ');
+  switchTab('tab-update');
+  toast('Product loaded for editing', 'info');
+}
+
+async function deleteProductPrompt(id) {
+  if (!confirm(`Delete product ID ${id}?`)) return;
+  try {
+    const r = await fetch(`${BASE_URL}/api/v0/product/${id}`, { method: 'DELETE' });
+    if (r.ok) { toast('Product deleted', 'success'); fetchAllProducts(); }
+    else { toast('Delete failed', 'error'); }
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+// ════════════════════════════════════════════════════════════
+//  PRODUCTS API
+// ════════════════════════════════════════════════════════════
+async function createProduct() {
+  spin('create', true);
+  try {
+    const fd = new FormData();
+    const name     = document.getElementById('c_name').value.trim();
+    const unit     = document.getElementById('c_unitPrice').value;
+    const sold     = document.getElementById('c_soldPrice').value;
+    const qty      = document.getElementById('c_qty').value;
+    const cat      = document.getElementById('c_category').value.trim();
+    const countries = document.getElementById('c_countries').value.split(',').map(s => s.trim()).filter(Boolean);
+    const files    = document.getElementById('c_images').files;
+
+    if (!name) { toast('Product name is required', 'error'); return; }
+
+    fd.append('ProdName', name);
+    if (unit) fd.append('UnitPrice', unit);
+    if (sold) fd.append('SoldPrice', sold);
+    if (qty)  fd.append('ProdQty', qty);
+    if (cat)  fd.append('category', cat);
+    countries.forEach(c => fd.append('Country', c));
+    Array.from(files).forEach(f => fd.append('ProdUrl', f));
+
+    const res = await fetch(`${BASE_URL}/api/v0/product/newProduct`, { method: 'POST', body: fd });
+    const data = await res.json();
+
+    if (res.ok) {
+      log('POST /newProduct → 201', data, 'success');
+      toast('Product created!', 'success');
+      resetForm('create');
+    } else {
+      log('POST /newProduct → ' + res.status, data, 'error');
+      toast(data.error || 'Creation failed', 'error');
+    }
+  } catch(e) {
+    log('POST /newProduct ERROR', e.message, 'error');
+    toast('Network error: ' + e.message, 'error');
+  } finally { spin('create', false); }
+}
+
+async function updateProduct() {
+  spin('update', true);
+  try {
+    const id = document.getElementById('u_id').value;
+    if (!id) { toast('Product ID is required', 'error'); return; }
+
+    const fd = new FormData();
+    const name     = document.getElementById('u_name').value.trim();
+    const unit     = document.getElementById('u_unitPrice').value;
+    const sold     = document.getElementById('u_soldPrice').value;
+    const qty      = document.getElementById('u_qty').value;
+    const cat      = document.getElementById('u_category').value.trim();
+    const countries = document.getElementById('u_countries').value.split(',').map(s => s.trim()).filter(Boolean);
+    const files    = document.getElementById('u_images').files;
+
+    if (name) fd.append('ProdName', name);
+    if (unit) fd.append('UnitPrice', unit);
+    if (sold) fd.append('SoldPrice', sold);
+    if (qty)  fd.append('ProdQty', qty);
+    if (cat)  fd.append('category', cat);
+    countries.forEach(c => fd.append('Country', c));
+    Array.from(files).forEach(f => fd.append('ProdUrl', f));
+
+    const res = await fetch(`${BASE_URL}/api/v0/product/updateProduct/${id}`, { method: 'POST', body: fd });
+    const data = await res.json();
+
+    if (res.ok) {
+      log(`POST /updateProduct/${id} → 200`, data, 'success');
+      toast('Product updated!', 'success');
+    } else {
+      log(`POST /updateProduct/${id} → ` + res.status, data, 'error');
+      toast(data.message || 'Update failed', 'error');
+    }
+  } catch(e) {
+    log('POST /updateProduct ERROR', e.message, 'error');
+    toast('Network error: ' + e.message, 'error');
+  } finally { spin('update', false); }
+}
+
+async function fetchAllProducts() {
+  spin('list', true);
+  try {
+    const res = await fetch(`${BASE_URL}/api/v0/product/all`);
+    const data = await res.json();
+    log('GET /product/all → ' + res.status, data, res.ok ? 'success' : 'error');
+
+    const container = document.getElementById('products-grid-container');
+    if (res.ok && data.length) {
+      container.innerHTML = `<div class="products-grid">${data.map(renderProductCard).join('')}</div>`;
+      toast(`Loaded ${data.length} products`, 'success');
+    } else if (res.ok && !data.length) {
+      container.innerHTML = '<div class="empty-state"><div class="icon">📦</div><p>No products found</p></div>';
+    } else {
+      container.innerHTML = `<div class="empty-state"><div class="icon">⚠</div><p>${data.message || 'Error loading products'}</p></div>`;
+      toast('Failed to load products', 'error');
+    }
+  } catch(e) {
+    log('GET /product/all ERROR', e.message, 'error');
+    toast('Network error', 'error');
+  } finally { spin('list', false); }
+}
+
+async function getProductById() {
+  const id = document.getElementById('get_id').value;
+  if (!id) { toast('Enter a product ID', 'error'); return; }
+  spin('getone', true);
+  try {
+    const res = await fetch(`${BASE_URL}/api/v0/product/${id}`);
+    const data = await res.json();
+    log(`GET /product/${id} → ` + res.status, data, res.ok ? 'success' : 'error');
+    document.getElementById('single-product-result').innerHTML =
+      res.ok ? `<div class="products-grid">${renderProductCard(data)}</div>`
+            : `<div class="empty-state"><div class="icon">⚠</div><p>${data.message || 'Not found'}</p></div>`;
+    if (!res.ok) toast('Product not found', 'error');
+  } catch(e) {
+    log(`GET /product/${id} ERROR`, e.message, 'error');
+    toast('Network error', 'error');
+  } finally { spin('getone', false); }
+}
+
+async function searchProduct() {
+  const name = document.getElementById('search_name').value.trim();
+  if (!name) { toast('Enter a product name', 'error'); return; }
+  spin('search', true);
+  try {
+    const res = await fetch(`${BASE_URL}/api/v0/product/search?prodName=${encodeURIComponent(name)}`);
+    const data = await res.json();
+    log(`GET /product/search?prodName=${name} → ` + res.status, data, res.ok ? 'success' : 'error');
+    document.getElementById('search-result').innerHTML =
+      res.ok ? `<div class="products-grid">${renderProductCard(data)}</div>`
+             : `<div class="empty-state"><div class="icon">⚠</div><p>${data.message || 'Not found'}</p></div>`;
+    if (!res.ok) toast('Product not found', 'error');
+  } catch(e) {
+    toast('Network error', 'error');
+  } finally { spin('search', false); }
+}
+
+// ════════════════════════════════════════════════════════════
+//  FILES API
+// ════════════════════════════════════════════════════════════
+async function uploadFile() {
+  const file = document.getElementById('f_file').files[0];
+  if (!file) { toast('Select a file first', 'error'); return; }
+  spin('file-upload', true);
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+    const productId = document.getElementById('f_productId').value;
+    const url = productId ? `${BASE_URL}/file/upload?productId=${productId}` : `${BASE_URL}/file/upload`;
+    const res = await fetch(url, { method: 'POST', body: fd });
+    const data = await res.json();
+    log('POST /file/upload → ' + res.status, data, res.ok ? 'success' : 'error');
+    if (res.ok) {
+      toast('File uploaded! ID: ' + data.fileId, 'success');
+      document.getElementById('upload-result').innerHTML = `
+        <div style="font-family:var(--mono);font-size:0.75rem;padding:0.75rem;background:var(--bg);border-radius:7px;border:1px solid var(--border)">
+          <span style="color:var(--muted)">fileId: </span><span style="color:var(--green)">${data.fileId}</span>
+        </div>
+        <img src="${BASE_URL}/file/${data.fileId}" style="max-height:150px;border-radius:8px;border:1px solid var(--border);margin-top:0.75rem;display:block" />`;
+    } else {
+      toast(data.error || 'Upload failed', 'error');
+    }
+  } catch(e) {
+    log('POST /file/upload ERROR', e.message, 'error');
+    toast('Network error', 'error');
+  } finally { spin('file-upload', false); }
+}
+
+function serveFile() {
+  const id = document.getElementById('serve_id').value.trim();
+  if (!id) { toast('Enter a file ID', 'error'); return; }
+  const url = `${BASE_URL}/file/${id}`;
+  log(`GET /file/${id}`, 'Loading image…', 'info');
+  document.getElementById('serve-result').innerHTML = `
+    <img src="${url}" style="max-height:300px;border-radius:10px;border:1px solid var(--border);display:block"
+         onerror="this.style.display='none';document.getElementById('serve-err').style.display='block'" />
+    <div id="serve-err" style="display:none" class="empty-state"><div class="icon">⚠</div><p>Image not found or invalid ID</p></div>`;
+}
+
+async function getFileMeta() {
+  const id = document.getElementById('meta_id').value.trim();
+  if (!id) { toast('Enter a file ID', 'error'); return; }
+  spin('meta', true);
+  try {
+    const res = await fetch(`${BASE_URL}/file/metadata/${id}`);
+    const data = await res.json();
+    log(`GET /file/metadata/${id} → ` + res.status, data, res.ok ? 'success' : 'error');
+    if (res.ok) {
+      document.getElementById('meta-result').innerHTML = `
+        <div style="font-family:var(--mono);font-size:0.73rem;padding:1rem;background:var(--bg);border-radius:8px;border:1px solid var(--border);line-height:2">
+          ${Object.entries(data).map(([k,v]) =>
+            `<div><span style="color:var(--muted)">${k}: </span><span style="color:var(--blue)">${JSON.stringify(v)}</span></div>`
+          ).join('')}
+        </div>`;
+      toast('Metadata loaded', 'success');
+    } else {
+      toast('Not found', 'error');
+    }
+  } catch(e) { toast('Network error', 'error'); }
+  finally { spin('meta', false); }
+}
+
+async function deleteFile() {
+  const id = document.getElementById('del_file_id').value.trim();
+  if (!id) { toast('Enter a file ID', 'error'); return; }
+  if (!confirm(`Delete file ${id}?`)) return;
+  spin('file-delete', true);
+  try {
+    const res = await fetch(`${BASE_URL}/file/${id}`, { method: 'DELETE' });
+    const data = await res.json();
+    log(`DELETE /file/${id} → ` + res.status, data, res.ok ? 'success' : 'error');
+    toast(res.ok ? 'File deleted' : (data.error || 'Delete failed'), res.ok ? 'success' : 'error');
+  } catch(e) { toast('Network error', 'error'); }
+  finally { spin('file-delete', false); }
+}
+
+async function getFilesByProduct() {
+  const id = document.getElementById('fp_id').value;
+  if (!id) { toast('Enter a product ID', 'error'); return; }
+  spin('fp', true);
+  try {
+    const res = await fetch(`${BASE_URL}/file/product/${id}`);
+    const data = await res.json();
+    log(`GET /file/product/${id} → ` + res.status, data, res.ok ? 'success' : 'error');
+    if (res.ok && data.length) {
+      document.getElementById('fp-result').innerHTML = `
+        <div class="image-gallery" style="gap:0.75rem">
+          ${data.map(f => `
+            <div style="text-align:center">
+              <img class="gallery-img" style="width:90px;height:90px" src="${BASE_URL}/file/${f.gridFsId}" alt="${f.originalName}" />
+              <div style="font-family:var(--mono);font-size:0.6rem;color:var(--muted);margin-top:4px">${f.originalName}</div>
+            </div>`).join('')}
+        </div>`;
+      toast(`${data.length} file(s) found`, 'success');
+    } else {
+      document.getElementById('fp-result').innerHTML = '<div class="empty-state"><div class="icon">🖼</div><p>No files for this product</p></div>';
+      toast('No files found', 'info');
+    }
+  } catch(e) { toast('Network error', 'error'); }
+  finally { spin('fp', false); }
+}
+
+// ════════════════════════════════════════════════════════════
+//  CATEGORIES API
+// ════════════════════════════════════════════════════════════
+async function fetchCategories() {
+  spin('cat', true);
+  try {
+    const res = await fetch(`${BASE_URL}/api/v0/categories/getAllCategories`);
+    const data = await res.json();
+    log('GET  /api/v0/categories/getAllCategories → ' + res.status, data, res.ok ? 'success' : 'error');
+    if (res.ok && data.length) {
+      document.getElementById('categories-result').innerHTML = `
+        <div style="display:flex;flex-wrap:wrap;gap:0.6rem">
+          ${data.map(c => `
+            <div style="padding:0.6rem 1rem;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-size:0.8rem">
+              <span style="color:var(--muted);font-family:var(--mono);font-size:0.65rem">#${c.idCatProd} </span>
+              <strong>${c.catProdName}</strong>
+            </div>`).join('')}
+        </div>`;
+      toast(`${data.length} categories loaded`, 'success');
+    } else {
+      document.getElementById('categories-result').innerHTML =
+        '<div class="empty-state"><div class="icon">🏷</div><p>No categories found</p></div>';
+    }
+  } catch(e) { toast('Network error', 'error'); }
+  finally { spin('cat', false); }
+}
+
+async function getCategoryById() {
+  const id = document.getElementById('cat_id').value;
+  if (!id) { toast('Enter a category ID', 'error'); return; }
+  try {
+    const res = await fetch(`${BASE_URL}/api/v0/categories/${id}`);
+    const data = await res.json();
+    log(`GET /categories/${id} → ` + res.status, data, res.ok ? 'success' : 'error');
+    document.getElementById('cat-single-result').innerHTML = res.ok
+      ? `<div style="padding:0.75rem;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-family:var(--mono);font-size:0.75rem">
+           <span style="color:var(--muted)">id: </span>${data.idCatProd}<br/>
+           <span style="color:var(--muted)">name: </span><strong>${data.catProdName}</strong>
+         </div>`
+      : `<div class="empty-state"><div class="icon">⚠</div><p>Not found</p></div>`;
+  } catch(e) { toast('Network error', 'error'); }
+}
+
+// ════════════════════════════════════════════════════════════
+//  COUNTRIES API
+// ════════════════════════════════════════════════════════════
+async function fetchCountries() {
+  spin('country', true);
+  try {
+    const res = await fetch(`${BASE_URL}/api/v0/country/getAllCountries`);
+    const data = await res.json();
+    log('GET  /api/v0/country/getAllCountries → ' + res.status, data, res.ok ? 'success' : 'error');
+    if (res.ok && data.length) {
+      document.getElementById('countries-result').innerHTML = `
+        <div style="display:flex;flex-wrap:wrap;gap:0.6rem">
+          ${data.map(c => `
+            <div style="padding:0.6rem 1rem;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-size:0.8rem">
+              <span style="color:var(--muted);font-family:var(--mono);font-size:0.65rem">#${c.idCountry} </span>
+              <strong>${c.countryName}</strong>
+            </div>`).join('')}
+        </div>`;
+      toast(`${data.length} countries loaded`, 'success');
+    } else {
+      document.getElementById('countries-result').innerHTML =
+        '<div class="empty-state"><div class="icon">🌍</div><p>No countries found</p></div>';
+    }
+  } catch(e) { toast('Network error', 'error'); }
+  finally { spin('country', false); }
+}
+
+async function getCountryById() {
+  const id = document.getElementById('country_id').value;
+  if (!id) { toast('Enter a country ID', 'error'); return; }
+  try {
+    const res = await fetch(`${BASE_URL}/api/v0/countries/${id}`);
+    const data = await res.json();
+    log(`GET /countries/${id} → ` + res.status, data, res.ok ? 'success' : 'error');
+    document.getElementById('country-single-result').innerHTML = res.ok
+      ? `<div style="padding:0.75rem;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-family:var(--mono);font-size:0.75rem">
+           <span style="color:var(--muted)">id: </span>${data.idCountry}<br/>
+           <span style="color:var(--muted)">name: </span><strong>${data.countryName}</strong>
+         </div>`
+      : `<div class="empty-state"><div class="icon">⚠</div><p>Not found</p></div>`;
+  } catch(e) { toast('Network error', 'error'); }
+}
+</script>
+</body>
+</html>

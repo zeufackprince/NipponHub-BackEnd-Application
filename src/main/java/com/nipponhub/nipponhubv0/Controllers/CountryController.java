@@ -2,11 +2,14 @@ package com.nipponhub.nipponhubv0.Controllers;
 
 import java.util.List;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.nipponhub.nipponhubv0.DTO.CountryDto;
 import com.nipponhub.nipponhubv0.Models.Country;
 import com.nipponhub.nipponhubv0.Services.CountryServices;
 
@@ -22,18 +25,21 @@ public class CountryController {
     private final CountryServices countryServices;
 
     @PostMapping("/newCountry")
-    public String createCountry(String countryName, String countryCode) {
-        return this.countryServices.createCountry(countryName, countryCode);
+    public ResponseEntity<CountryDto> createCountry(@RequestBody CountryDto countryDto) {
+        CountryDto res = this.countryServices.createCountry(countryDto);
+        return ResponseEntity.ok(res);
     }
 
     @PostMapping("/deleteCountry")
-    public String deleteCountry(Long idCountry) {
-        return this.countryServices.deleteCountry(idCountry);
+    public ResponseEntity<String> deleteCountry(@RequestBody Long idCountry) {
+        String res = this.countryServices.deleteCountry(idCountry);
+        return ResponseEntity.ok(res);
     }
 
     @GetMapping("/getAllCountries")
-    public List<Country> getAllCountries() {
-        return this.countryServices.getAllCountries();
+    public ResponseEntity<List<Country>> getAllCountries() {
+        List<Country> res = this.countryServices.getAllCountries();
+        return ResponseEntity.ok(res);
     }
     
 }

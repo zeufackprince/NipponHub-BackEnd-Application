@@ -22,7 +22,7 @@ public class MongoConfig {
     @Value("${spring.data.mongodb.uri}")
     private String mongoUri;
 
-    @Value("${spring.data.mongodb.database:nipponhub_files}")
+    @Value("${spring.data.mongodb.database:nipponhubfiles}")
     private String database;
 
     @Bean

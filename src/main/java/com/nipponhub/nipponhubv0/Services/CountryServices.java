@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 
+import com.nipponhub.nipponhubv0.DTO.CountryDto;
 import com.nipponhub.nipponhubv0.Models.Country;
 import com.nipponhub.nipponhubv0.Repositories.mysql.CountryRepository;
 
@@ -15,17 +16,21 @@ public class CountryServices {
 
     private final CountryRepository countryRepository;
 
-    public String createCountry(String countryName, String countryCode) {
-        String res = "";
+    public CountryDto createCountry(CountryDto countryDto) {
+        CountryDto res = new CountryDto();
         try {
             Country country = new Country();
-            country.setCountryName(countryName);
-            country.setCountryCode(countryCode);
+            country.setCountryName(countryDto.getCountryName());
+            country.setCountryCode(countryDto.getCountryCode());
 
-            this.countryRepository.save(country);
-            res = "Country Created Successfully...";
+            Country savedCountry = this.countryRepository.save(country);
+            res.setIdCountry(savedCountry.getIdCountry());
+            res.setCountryName(savedCountry.getCountryName());
+            res.setCountryCode(savedCountry.getCountryCode());
+
+            res.setMessage("Country Created Successfully...");
         } catch (Exception e) {
-            res = "Error Creating Country..." + e;
+            res.setMessage("Error Creating Country..." + e);
         }
         return res;
     }

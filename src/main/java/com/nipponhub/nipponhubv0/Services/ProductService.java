@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -33,14 +34,6 @@ public class ProductService {
 
     // ─── CREATE ──────────────────────────────────────────────────────────────────
 
-    /**
-     * Create a new product with optional images.
-     *
-     * FIX: Manual MongoDB rollback added — if MySQL save fails after GridFS upload,
-     * the orphaned files are deleted to keep both databases consistent.
-     *
-     * FIX: Input validation added — required fields are checked before any DB call.
-     */
     @Transactional
     public ProductDto createProduct(
         String prodName,
@@ -52,29 +45,22 @@ public class ProductService {
         String categoryName
     ) throws IOException {
 
-        // ── Input Validation ──────────────────────────────────────────────────
         validateProductInputs(prodName, unitPrice, soldPrice, prodQty, countryNames, categoryName);
 
-        // ── Step 1: Upload images to MongoDB GridFS ───────────────────────────
-        // Done BEFORE saving to MySQL so we have the file IDs ready.
-        // If MySQL save fails, we manually roll back GridFS (it's non-transactional).
         List<String> fileIds = new ArrayList<>();
         if (imageFiles != null && !imageFiles.isEmpty()) {
-            fileIds = fileStorageService.uploadFiles(imageFiles); // productId linked after save
+            fileIds = fileStorageService.uploadFiles(imageFiles);
         }
 
         try {
-            // ── Step 2: Resolve category ──────────────────────────────────────
             CategoriesProd category = categoriesRepository.findByCatProdName(categoryName)
                 .orElseThrow(() -> new RuntimeException("Category not found: " + categoryName));
 
-            // ── Step 3: Resolve countries ─────────────────────────────────────
             List<Country> countries = countryRepository.findByCountryNameIn(countryNames);
             if (countries.isEmpty()) {
                 throw new RuntimeException("No countries found for: " + countryNames);
             }
 
-            // ── Step 4: Build and save product ────────────────────────────────
             Product prod = new Product();
             prod.setProdName(prodName);
             prod.setUnitPrice(unitPrice);
@@ -85,27 +71,22 @@ public class ProductService {
             prod.setCountries(countries);
 
             Product saved = productRepository.save(prod);
+
             log.info("Product created — id: {}, name: {}", saved.getIdProd(), prodName);
             return prodMapper.prodToDto(saved);
 
         } catch (Exception e) {
-            // ── Compensating rollback: remove GridFS files if MySQL save failed ─
             if (!fileIds.isEmpty()) {
                 log.warn("MySQL save failed — rolling back {} GridFS file(s)", fileIds.size());
                 fileStorageService.deleteFiles(fileIds);
             }
-            throw e; // re-throw so @Transactional rolls back MySQL too
+            throw e;
         }
     }
 
     // ─── UPDATE ──────────────────────────────────────────────────────────────────
 
-    /**
-     * Update an existing product.
-     *
-     * FIX: Declared throws IOException — no longer silently swallows file errors.
-     * FIX: MongoDB rollback added for new images if MySQL update fails.
-     */
+    @Transactional
     public ProductDto updateProduct(
         Long idProd,
         String prodName,
@@ -118,25 +99,24 @@ public class ProductService {
     ) throws IOException {
 
         ProductDto res = new ProductDto();
-        List<String> newFileIds = new ArrayList<>();
-        List<String> oldFileIds = new ArrayList<>();
+        List<String> newFileIds  = new ArrayList<>();
+        List<String> oldFileIds  = new ArrayList<>();
 
         try {
-            Product prod = productRepository.findById(idProd)
+            // ✅ fetch join — all relations loaded, no proxy needed
+            Product prod = productRepository.findByIdWithRelations(idProd)
                 .orElseThrow(() -> new RuntimeException("Product not found: " + idProd));
 
-            // ── Replace images only if new ones are provided ──────────────────
             if (newImageFiles != null && !newImageFiles.isEmpty()) {
-                oldFileIds = new ArrayList<>(prod.getProdUrl()); // save old ids for rollback
+                oldFileIds = new ArrayList<>(prod.getProdUrl());
                 newFileIds = fileStorageService.uploadFiles(newImageFiles, idProd);
                 prod.setProdUrl(newFileIds);
             }
 
-            // ── Update scalar fields only if provided ─────────────────────────
-            if (prodName    != null) prod.setProdName(prodName);
-            if (unitPrice   != null) prod.setUnitPrice(unitPrice);
-            if (soldPrice   != null) prod.setSoldPrice(soldPrice);
-            if (prodQty     != null) prod.setProdQty(prodQty);
+            if (prodName  != null) prod.setProdName(prodName);
+            if (unitPrice != null) prod.setUnitPrice(unitPrice);
+            if (soldPrice != null) prod.setSoldPrice(soldPrice);
+            if (prodQty   != null) prod.setProdQty(prodQty);
 
             if (categoryName != null) {
                 categoriesRepository.findByCatProdName(categoryName)
@@ -147,10 +127,8 @@ public class ProductService {
                 prod.setCountries(countryRepository.findByCountryNameIn(countryNames));
             }
 
-            // ── Save ──────────────────────────────────────────────────────────
             Product updated = productRepository.save(prod);
 
-            // ── Delete OLD images only after successful MySQL save ─────────────
             if (!oldFileIds.isEmpty()) {
                 fileStorageService.deleteFiles(oldFileIds);
                 log.info("Replaced {} old image(s) for product id: {}", oldFileIds.size(), idProd);
@@ -160,9 +138,8 @@ public class ProductService {
             log.info("Product updated — id: {}", idProd);
 
         } catch (Exception e) {
-            // ── Compensating rollback: remove newly uploaded GridFS files ──────
             if (!newFileIds.isEmpty()) {
-                log.warn("Update failed — rolling back {} new GridFS file(s)", newFileIds.size());
+                log.warn("Update failed — rolling back {} GridFS file(s)", newFileIds.size());
                 fileStorageService.deleteFiles(newFileIds);
             }
             log.error("Error updating product {}: {}", idProd, e.getMessage(), e);
@@ -175,28 +152,29 @@ public class ProductService {
     // ─── READ ────────────────────────────────────────────────────────────────────
 
     /**
-     * Return all products.
+     * Uses findAllWithRelations() — a JPQL JOIN FETCH query that loads
+     * categoriesProd, franchiseProd, and countries in one SQL statement.
+     * No lazy proxy, no session dependency, no @Transactional needed for reads.
+     * @Transactional kept as an extra safety net.
      */
+    @Transactional
     public List<ProductDto> getAllProducts() {
-        List<ProductDto> res = new ArrayList<>();
         try {
-            res = productRepository.findAll()
+            return productRepository.findAllWithRelations()   // ✅ fetch join
                 .stream()
                 .map(prodMapper::prodToDto)
                 .collect(Collectors.toList());
         } catch (Exception e) {
             log.error("Error fetching all products: {}", e.getMessage(), e);
+            return new ArrayList<>();
         }
-        return res;
     }
 
-    /**
-     * Find a product by its MySQL primary key.
-     */
+    @Transactional
     public ProductDto getProductById(Long idProd) {
         ProductDto res = new ProductDto();
         try {
-            Product product = productRepository.findById(idProd)
+            Product product = productRepository.findByIdWithRelations(idProd)  // ✅ fetch join
                 .orElseThrow(() -> new RuntimeException("Product not found with id: " + idProd));
             res = prodMapper.prodToDto(product);
         } catch (Exception e) {
@@ -206,15 +184,12 @@ public class ProductService {
         return res;
     }
 
-    /**
-     * Find a product by name (case-insensitive).
-     *
-     * FIX: Was case-sensitive — now uses findByProdNameIgnoreCase.
-     */
+    @Transactional
     public ProductDto getProductByName(String prodName) {
         ProductDto res = new ProductDto();
         try {
-            Product product = productRepository.findByProdName(prodName)
+            Product product = productRepository
+                .findByProdNameIgnoreCaseWithRelations(prodName)               // ✅ fetch join
                 .orElseThrow(() -> new RuntimeException("Product not found with name: " + prodName));
             res = prodMapper.prodToDto(product);
         } catch (Exception e) {
@@ -224,37 +199,66 @@ public class ProductService {
         return res;
     }
 
-    // ─── PRIVATE HELPERS ─────────────────────────────────────────────────────────
 
-    /**
-     * Validates required product fields before any database operation.
-     * FIX: Prevents products from being saved with null/blank required fields.
-     */
+    @Transactional
+    public List<ProductDto> getProductByCountry(String countryName) {
+ 
+    List<ProductDto> res = new ArrayList<>();
+ 
+    try {
+        // ── Step 1: Validate the country exists ───────────────────────────
+        Optional<Country> dbCountry = countryRepository.getByCountryName(countryName);
+ 
+        if (dbCountry.isEmpty()) {
+            log.warn("No country found with name: {}", countryName);
+            return res; // return empty list — country doesn't exist
+        }
+ 
+        Country country = dbCountry.get();
+ 
+        // ── Step 2: Query products by country directly in the DB ──────────
+        // Much more efficient than loading all products and filtering in Java.
+        // Requires adding findByCountriesContaining() to ProductRepository.
+        List<Product> products = productRepository.findByCountriesContaining(country);
+ 
+        if (products.isEmpty()) {
+            log.info("No products found for country: {}", countryName);
+            return res;
+        }
+ 
+        // ── Step 3: Map to DTOs ───────────────────────────────────────────
+        // @Transactional above keeps the Hibernate session open here,
+        // so lazy-loaded relations inside prodMapper.prodToDto() resolve safely.
+        res = products.stream()
+            .map(prodMapper::prodToDto)
+            .collect(Collectors.toList());
+ 
+        log.info("Found {} product(s) for country: {}", res.size(), countryName);
+ 
+    } catch (Exception e) {
+        log.error("Error fetching products by country '{}': {}", countryName, e.getMessage(), e);
+    }
+ 
+    return res;
+}
+
+    // ─── PRIVATE ─────────────────────────────────────────────────────────────────
+
     private void validateProductInputs(
-        String prodName,
-        BigDecimal unitPrice,
-        BigDecimal soldPrice,
-        Integer prodQty,
-        List<String> countryNames,
-        String categoryName
+        String prodName, BigDecimal unitPrice, BigDecimal soldPrice,
+        Integer prodQty, List<String> countryNames, String categoryName
     ) {
-        if (prodName == null || prodName.isBlank()) {
+        if (prodName == null || prodName.isBlank())
             throw new IllegalArgumentException("Product name is required");
-        }
-        if (unitPrice == null) {
+        if (unitPrice == null)
             throw new IllegalArgumentException("Unit price is required");
-        }
-        if (soldPrice == null) {
+        if (soldPrice == null)
             throw new IllegalArgumentException("Sold price is required");
-        }
-        if (prodQty == null || prodQty < 0) {
+        if (prodQty == null || prodQty < 0)
             throw new IllegalArgumentException("Product quantity must be zero or greater");
-        }
-        if (countryNames == null || countryNames.isEmpty()) {
+        if (countryNames == null || countryNames.isEmpty())
             throw new IllegalArgumentException("At least one country is required");
-        }
-        if (categoryName == null || categoryName.isBlank()) {
+        if (categoryName == null || categoryName.isBlank())
             throw new IllegalArgumentException("Category is required");
-        }
     }
 }
