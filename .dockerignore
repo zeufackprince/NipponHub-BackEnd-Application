@@ -1,0 +1,20 @@
+# Docker Ignore File
+
+# Exclude node_modules
+node_modules/
+
+# Exclude log files
+*.log
+
+# Exclude temporary files
+*.tmp
+
+# Exclude Mac system files
+.DS_Store
+
+# Exclude build artifacts
+/dist/
+/build/
+
+# Exclude any environment files
+.env
