@@ -41,6 +41,8 @@ public class ProductDto {
 
     private String franchiseName;
 
+    private String prodDescription;
+
     private Long franchiseId;
 
     private List<String> countries;

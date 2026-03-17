@@ -1,21 +1,3 @@
-// package com.nipponhub.nipponhubv0.Repositories.mysql;
-
-// import java.util.List;
-// import java.util.Optional;
-
-// import org.springframework.data.jpa.repository.JpaRepository;
-
-// import com.nipponhub.nipponhubv0.Models.Product;
-
-// public interface ProductRepository extends JpaRepository<Product, Long>{
-    
-//     // Find by exact name
-//     Optional<Product> findByProdName(String prodName);
-
-//     // Find by name containing a keyword (useful for search)
-//     List<Product> findByProdNameContainingIgnoreCase(String keyword);
-// }
-
 package com.nipponhub.nipponhubv0.Repositories.mysql;
 
 import com.nipponhub.nipponhubv0.Models.Country;
@@ -93,4 +75,6 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     Optional<Product> findByProdNameIgnoreCaseWithRelations(@Param("name") String name);
 
     List<Product> findByCountriesContaining(Country country);
+
+    // List<Product> findByCategoriesProdContaining(CategoriesProd category);
 }

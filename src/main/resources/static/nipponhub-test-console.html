@@ -1529,18 +1529,18 @@ async function updateProduct() {
     countries.forEach(c => fd.append('Country', c));
     Array.from(files).forEach(f => fd.append('ProdUrl', f));
 
-    const res = await fetch(`${BASE_URL}/api/v0/product/updateProduct/${id}`, { method: 'POST', body: fd });
+    const res = await fetch(`${BASE_URL}/api/v0/product/updateProduct/${id}`, { method: 'PUT', body: fd });
     const data = await res.json();
 
     if (res.ok) {
-      log(`POST /updateProduct/${id} → 200`, data, 'success');
+      log(`PUT /updateProduct/${id} → 200`, data, 'success');
       toast('Product updated!', 'success');
     } else {
-      log(`POST /updateProduct/${id} → ` + res.status, data, 'error');
+      log(`PUT /updateProduct/${id} → ` + res.status, data, 'error');
       toast(data.message || 'Update failed', 'error');
     }
   } catch(e) {
-    log('POST /updateProduct ERROR', e.message, 'error');
+    log('PUT /updateProduct ERROR', e.message, 'error');
     toast('Network error: ' + e.message, 'error');
   } finally { spin('update', false); }
 }
@@ -1591,9 +1591,9 @@ async function searchProduct() {
   if (!name) { toast('Enter a product name', 'error'); return; }
   spin('search', true);
   try {
-    const res = await fetch(`${BASE_URL}/api/v0/product/search?prodName=${encodeURIComponent(name)}`);
+    const res = await fetch(`${BASE_URL}/api/v0/product/searchByName/${encodeURIComponent(name)}`);
     const data = await res.json();
-    log(`GET /product/search?prodName=${name} → ` + res.status, data, res.ok ? 'success' : 'error');
+    log(`GET /product/searchByName/${name} → ` + res.status, data, res.ok ? 'success' : 'error');
     document.getElementById('search-result').innerHTML =
       res.ok ? `<div class="products-grid">${renderProductCard(data)}</div>`
              : `<div class="empty-state"><div class="icon">⚠</div><p>${data.message || 'Not found'}</p></div>`;

@@ -3,10 +3,12 @@ package com.nipponhub.nipponhubv0.Controllers;
 import java.util.List;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.nipponhub.nipponhubv0.DTO.CountryDto;
@@ -30,8 +32,8 @@ public class CountryController {
         return ResponseEntity.ok(res);
     }
 
-    @PostMapping("/deleteCountry")
-    public ResponseEntity<String> deleteCountry(@RequestBody Long idCountry) {
+    @DeleteMapping("/deleteCountry/{idCountry}")
+    public ResponseEntity<String> deleteCountry(@RequestParam Long idCountry) {
         String res = this.countryServices.deleteCountry(idCountry);
         return ResponseEntity.ok(res);
     }

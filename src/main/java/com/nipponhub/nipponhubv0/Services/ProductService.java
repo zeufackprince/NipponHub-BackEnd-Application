@@ -8,6 +8,7 @@ import com.nipponhub.nipponhubv0.Models.Product;
 import com.nipponhub.nipponhubv0.Repositories.mysql.CategoriesRepository;
 import com.nipponhub.nipponhubv0.Repositories.mysql.CountryRepository;
 import com.nipponhub.nipponhubv0.Repositories.mysql.ProductRepository;
+import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,10 +43,11 @@ public class ProductService {
         Integer prodQty,
         List<MultipartFile> imageFiles,
         List<String> countryNames,
-        String categoryName
+        String categoryName,
+        String prodDescription
     ) throws IOException {
 
-        validateProductInputs(prodName, unitPrice, soldPrice, prodQty, countryNames, categoryName);
+        validateProductInputs(prodName, unitPrice, soldPrice, prodQty, countryNames, categoryName, prodDescription);
 
         List<String> fileIds = new ArrayList<>();
         if (imageFiles != null && !imageFiles.isEmpty()) {
@@ -62,6 +64,7 @@ public class ProductService {
             }
 
             Product prod = new Product();
+
             prod.setProdName(prodName);
             prod.setUnitPrice(unitPrice);
             prod.setSoldPrice(soldPrice);
@@ -69,6 +72,7 @@ public class ProductService {
             prod.setProdUrl(fileIds);
             prod.setCategoriesProd(category);
             prod.setCountries(countries);
+            prod.setProdDescription(prodDescription);
 
             Product saved = productRepository.save(prod);
 
@@ -95,7 +99,8 @@ public class ProductService {
         Integer prodQty,
         List<MultipartFile> newImageFiles,
         List<String> countryNames,
-        String categoryName
+        String categoryName,
+        String prodDescription
     ) throws IOException {
 
         ProductDto res = new ProductDto();
@@ -117,6 +122,7 @@ public class ProductService {
             if (unitPrice != null) prod.setUnitPrice(unitPrice);
             if (soldPrice != null) prod.setSoldPrice(soldPrice);
             if (prodQty   != null) prod.setProdQty(prodQty);
+            if (prodDescription   != null) prod.setProdDescription(prodDescription);;
 
             if (categoryName != null) {
                 categoriesRepository.findByCatProdName(categoryName)
@@ -157,11 +163,11 @@ public class ProductService {
      * No lazy proxy, no session dependency, no @Transactional needed for reads.
      * @Transactional kept as an extra safety net.
      */
-    
+
     @Transactional
     public List<ProductDto> getAllProducts() {
         try {
-            return productRepository.findAllWithRelations()   // ✅ fetch join
+            return productRepository.findAllWithRelations() 
                 .stream()
                 .map(prodMapper::prodToDto)
                 .collect(Collectors.toList());
@@ -175,7 +181,7 @@ public class ProductService {
     public ProductDto getProductById(Long idProd) {
         ProductDto res = new ProductDto();
         try {
-            Product product = productRepository.findByIdWithRelations(idProd)  // ✅ fetch join
+            Product product = productRepository.findByIdWithRelations(idProd)
                 .orElseThrow(() -> new RuntimeException("Product not found with id: " + idProd));
             res = prodMapper.prodToDto(product);
         } catch (Exception e) {
@@ -207,19 +213,16 @@ public class ProductService {
     List<ProductDto> res = new ArrayList<>();
  
     try {
-        // ── Step 1: Validate the country exists ───────────────────────────
+
         Optional<Country> dbCountry = countryRepository.getByCountryName(countryName);
  
         if (dbCountry.isEmpty()) {
             log.warn("No country found with name: {}", countryName);
-            return res; // return empty list — country doesn't exist
+            return res;
         }
  
         Country country = dbCountry.get();
  
-        // ── Step 2: Query products by country directly in the DB ──────────
-        // Much more efficient than loading all products and filtering in Java.
-        // Requires adding findByCountriesContaining() to ProductRepository.
         List<Product> products = productRepository.findByCountriesContaining(country);
  
         if (products.isEmpty()) {
@@ -227,9 +230,6 @@ public class ProductService {
             return res;
         }
  
-        // ── Step 3: Map to DTOs ───────────────────────────────────────────
-        // @Transactional above keeps the Hibernate session open here,
-        // so lazy-loaded relations inside prodMapper.prodToDto() resolve safely.
         res = products.stream()
             .map(prodMapper::prodToDto)
             .collect(Collectors.toList());
@@ -243,11 +243,35 @@ public class ProductService {
     return res;
 }
 
+    @Transactional
+    public void retirerQuantite(Long idProd, int quantite) {
+        if (idProd == null) {
+            throw new IllegalArgumentException("idProd cannot be null");
+        }
+        if (quantite <= 0) {
+            throw new IllegalArgumentException("Quantite must be greater than zero");
+        }
+
+        Product product = productRepository.findById(idProd)
+            .orElseThrow(() -> new EntityNotFoundException("Product not found with id: " + idProd));
+
+        Integer currentQty = product.getProdQty();
+        if (currentQty == null) {
+            throw new IllegalStateException("Product quantity is undefined for id: " + idProd);
+        }
+        if (currentQty < quantite) {
+            throw new IllegalStateException("Insufficient stock. Current: " + currentQty + ", requested: " + quantite);
+        }
+
+        product.setProdQty(currentQty - quantite);
+        productRepository.save(product);
+    }
+
     // ─── PRIVATE ─────────────────────────────────────────────────────────────────
 
     private void validateProductInputs(
         String prodName, BigDecimal unitPrice, BigDecimal soldPrice,
-        Integer prodQty, List<String> countryNames, String categoryName
+        Integer prodQty, List<String> countryNames, String categoryName, String prodDescription
     ) {
         if (prodName == null || prodName.isBlank())
             throw new IllegalArgumentException("Product name is required");
@@ -261,5 +285,19 @@ public class ProductService {
             throw new IllegalArgumentException("At least one country is required");
         if (categoryName == null || categoryName.isBlank())
             throw new IllegalArgumentException("Category is required");
+        if(prodDescription == null || prodDescription.isBlank()) 
+            throw new IllegalArgumentException("Description is required");
     }
+
+    public void ajouterQuantite(String name, int quantite) {
+        Optional<Product> p = productRepository.findByProdName(name);
+        if (p == null) {
+            throw new RuntimeException("Produit non trouvé");
+        }
+        
+        p.get().setProdQty(p.get().getProdQty() + quantite);
+        productRepository.save(p.get());
+    }
+
+
 }

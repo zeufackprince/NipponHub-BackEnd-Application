@@ -25,6 +25,7 @@ public class ProductMapper {
         dto.setSoldPrice(product.getSoldPrice());
         dto.setProdQty(product.getProdQty());
         dto.setCreatedAt(product.getCreatedAt());
+        dto.setProdDescription(product.getProdDescription());
 
         // ── Image IDs list — safe, initialized to ArrayList in entity ─────────
         dto.setProdUrl(product.getProdUrl() != null
@@ -68,6 +69,7 @@ public class ProductMapper {
         res.setProdQty(reqProduct.getProdQty());
         res.setSoldPrice(reqProduct.getSoldPrice());
         res.setUnitPrice(reqProduct.getUnitPrice());
+        res.setProdDescription(reqProduct.getProdDescription());
         
 
         return res;

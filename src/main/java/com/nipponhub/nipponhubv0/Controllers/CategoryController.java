@@ -1,7 +1,6 @@
 package com.nipponhub.nipponhubv0.Controllers;
 
 import com.nipponhub.nipponhubv0.DTO.CategoryDto;
-import com.nipponhub.nipponhubv0.Models.CategoriesProd;
 import com.nipponhub.nipponhubv0.Services.CategoryServices;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;

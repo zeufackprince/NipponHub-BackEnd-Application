@@ -17,7 +17,7 @@ import java.util.Map;
 @Slf4j
 @RestController
 @RequestMapping("/api/v0/product")
-@RequiredArgsConstructor   // FIX: replaced @Data — @Data is for models, not controllers
+@RequiredArgsConstructor  
 public class ProductController {
 
     private final ProductService productServices;
@@ -40,12 +40,13 @@ public class ProductController {
         @RequestParam(required = false, name = "ProdQty")     Integer ProdQty,
         @RequestParam(required = false, name = "ProdUrl")     List<MultipartFile> ProdUrl,
         @RequestParam(required = false, name = "Country")     List<String> Country,
-        @RequestParam(required = false, name = "category")    String category
+        @RequestParam(required = false, name = "category")    String category,
+        @RequestParam(required = false, name = "prodDescription")    String prodDescription
     ) throws IOException {
 
         try {
             ProductDto result = productServices.createProduct(
-                ProdName, UnitPrice, SoldPrice, ProdQty, ProdUrl, Country, category
+                ProdName, UnitPrice, SoldPrice, ProdQty, ProdUrl, Country, category, prodDescription
             );
             return ResponseEntity.status(HttpStatus.CREATED).body(result);
 
@@ -65,7 +66,7 @@ public class ProductController {
      * FIX: Removed unnecessary null initialization of reqProductDto.
      * FIX: Returns ResponseEntity with proper HTTP status.
      */
-    @PostMapping("/updateProduct/{idProd}")
+    @PutMapping("/updateProduct/{idProd}")
     public ResponseEntity<?> updateProduct(
         @PathVariable Long idProd,
         @RequestParam(required = false, name = "ProdName")    String ProdName,
@@ -74,11 +75,13 @@ public class ProductController {
         @RequestParam(required = false, name = "ProdQty")     Integer ProdQty,
         @RequestParam(required = false, name = "ProdUrl")     List<MultipartFile> ProdUrl,
         @RequestParam(required = false, name = "Country")     List<String> Country,
-        @RequestParam(required = false, name = "category")    String category
+        @RequestParam(required = false, name = "category")    String category,
+        @RequestParam(required = false, name = "prodDescription")    String prodDescription
+
     ) throws IOException {
 
         ProductDto result = productServices.updateProduct(
-            idProd, ProdName, UnitPrice, SoldPrice, ProdQty, ProdUrl, Country, category
+            idProd, ProdName, UnitPrice, SoldPrice, ProdQty, ProdUrl, Country, category, prodDescription
         );
 
         // If service set a message, something went wrong
@@ -121,7 +124,7 @@ public class ProductController {
      * GET /api/v0/product/search?prodName=...
      * Returns a product by name (case-insensitive).
      */
-    @GetMapping("/search")
+    @GetMapping("/searchByName")
     public ResponseEntity<ProductDto> getProductByName(@RequestParam String prodName) {
         ProductDto product = productServices.getProductByName(prodName);
 
@@ -131,6 +134,18 @@ public class ProductController {
         return ResponseEntity.ok(product);
     }
 
+
+    // @GetMapping("/searchByCategory")
+    // public ResponseEntity<List<ProductDto>> getProductsByCategory(@RequestParam String category) {
+    //     List<ProductDto> products = productServices.getProductsByCategory(category);
+    //     return ResponseEntity.ok(products);
+    // }
+
+    @GetMapping("/searchByCountry")
+    public ResponseEntity<List<ProductDto>> getProductsByCountry(@RequestParam String country) {
+        List<ProductDto> products = productServices.getProductByCountry(country);
+        return ResponseEntity.ok(products);
+    }
     // ─── HEALTH CHECK ────────────────────────────────────────────────────────────
 
     @GetMapping("/greetings")

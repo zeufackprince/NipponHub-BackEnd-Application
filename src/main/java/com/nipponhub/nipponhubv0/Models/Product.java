@@ -50,6 +50,9 @@ public class Product {
     @Column(name = "prod_qty", nullable = false)
     private Integer prodQty;
 
+    @Column(name = "prod_description", nullable = false)
+    private String prodDescription;
+
     /**
      * List of MongoDB GridFS ObjectId strings.
      * Stored in a separate join table "product_images" in MySQL.
