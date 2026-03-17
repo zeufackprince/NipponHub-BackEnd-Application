@@ -1,0 +1,16 @@
+# Render configuration for deployment
+
+services:
+  web:
+    type: web
+    name: nipponhub-backend
+    env: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    autoDeploy: true
+    region: frankfurt
+    buildCommand: "npm install"
+    startCommand: "npm start"
+    envVars:
+      NODE_ENV: production
+      PORT: "10000"
